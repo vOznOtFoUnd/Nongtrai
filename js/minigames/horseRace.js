@@ -1,5 +1,56 @@
+let horseBetNumber = 1;
+
+function renderHorseRaceState() {
+    for (let i = 1; i <= 4; i++) {
+        const btn = document.getElementById('bet-horse-' + i);
+        if (btn) {
+            if (i === horseBetNumber) btn.classList.add('ring-2', 'ring-amber-400');
+            else btn.classList.remove('ring-2', 'ring-amber-400');
+        }
+    }
+
+    const input = document.getElementById('horse-bet-amount');
+    if (input) {
+        if (!input.value || Number(input.value) <= 0) input.value = 100;
+    }
+
+    const resBanner = document.getElementById('horse-race-result');
+    if (resBanner) {
+        resBanner.classList.add('hidden');
+        resBanner.innerHTML = '';
+    }
+
+    const btn = document.getElementById('btn-start-race');
+    if (btn) btn.disabled = false;
+}
+
+function resetHorseRaceState() {
+    horseBetNumber = 1;
+
+    const input = document.getElementById('horse-bet-amount');
+    if (input) input.value = 100;
+
+    const resBanner = document.getElementById('horse-race-result');
+    if (resBanner) {
+        resBanner.classList.add('hidden');
+        resBanner.innerHTML = '';
+    }
+
+    for (let i = 1; i <= 4; i++) {
+        const btn = document.getElementById('bet-horse-' + i);
+        if (btn) btn.classList.remove('ring-2', 'ring-amber-400');
+
+        const el = document.getElementById('horse-' + i);
+        if (el) el.style.left = '0%';
+    }
+
+    const startBtn = document.getElementById('btn-start-race');
+    if (startBtn) startBtn.disabled = false;
+}
+
 // Mở modal đua ngựa
 function openHorseRaceModal() {
+    resetHorseRaceState();
     openModal('modal-horse-race');
 }
 
