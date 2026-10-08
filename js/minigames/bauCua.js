@@ -1,45 +1,67 @@
 let bauCuaBets = { bau: 0, cua: 0, tom: 0, ca: 0, ga: 0, nai: 0 };
 
+// Reset state khi mở lại modal
+function resetBauCuaState() {
+    Object.keys(bauCuaBets).forEach(k => {
+        bauCuaBets[k] = 0;
+        const betEl = document.getElementById('bet-val-' + k);
+        if (betEl) betEl.innerText = '0đ';
+    });
+
+    const resBanner = document.getElementById('baucua-result');
+    if (resBanner) {
+        resBanner.classList.add('hidden');
+        resBanner.innerHTML = '';
+    }
+
+    const diceContainer = document.getElementById('dice-container');
+    if (diceContainer) {
+        Array.from(diceContainer.children).forEach(cell => {
+            cell.innerText = '🎲';
+        });
+    }
+
+    const btn = document.getElementById('btn-roll-baucua');
+    if (btn) btn.disabled = false;
+}
+
 // Mở modal Bầu Cua
 function openBauCuaModal() {
+    resetBauCuaState();
     openModal('modal-bau-cua');
 }
 
 // Đặt cược vào các cửa (mỗi lần click +100🪙)
 function addBauCuaBet(type) {
-    if (!bauCuaBets[type] && bauCuaBets[type] !== 0) return;
-
     const betStep = 100;
-    if ((gameState.gold || 0) < betStep) {
+    if (gameState.gold < betStep) {
         showToast("Thiếu Vàng! 🪙", "Bạn cần ít nhất 100 Vàng để cược!", "❌");
         return;
     }
 
     gameState.gold -= betStep;
     bauCuaBets[type] += betStep;
+
     const betEl = document.getElementById('bet-val-' + type);
     if (betEl) betEl.innerText = `${bauCuaBets[type].toLocaleString()}đ`;
+
     updateUI();
 }
 
 // Đặt lại các cược (Hoàn trả tiền về ví)
 function clearBauCuaBets() {
-    let totalRefund = 0;
     Object.keys(bauCuaBets).forEach(k => {
-        totalRefund += bauCuaBets[k];
+        gameState.gold += bauCuaBets[k];
         bauCuaBets[k] = 0;
+
         const betEl = document.getElementById('bet-val-' + k);
         if (betEl) betEl.innerText = '0đ';
     });
 
-    if (totalRefund > 0) {
-        gameState.gold += totalRefund;
-    }
-
     updateUI();
 }
 
-// Xóc đĩa Bầu Cua chuẩn xác suất ngẫu nhiên
+// Xóc đĩa Bầu Cua
 function rollBauCua() {
     const totalBet = Object.values(bauCuaBets).reduce((a, b) => a + b, 0);
     if (totalBet <= 0) {
@@ -49,12 +71,6 @@ function rollBauCua() {
 
     const btn = document.getElementById('btn-roll-baucua');
     if (btn) btn.disabled = true;
-
-    const resBanner = document.getElementById('baucua-result');
-    if (resBanner) {
-        resBanner.classList.add('hidden');
-        resBanner.innerHTML = '';
-    }
 
     const icons = ['🪷', '🦀', '🦐', '🐟', '🐓', '🦌'];
     const keys = ['bau', 'cua', 'tom', 'ca', 'ga', 'nai'];
@@ -100,6 +116,7 @@ function rollBauCua() {
                         totalReturn += betAmount + (betAmount * matchCount);
                     }
                     bauCuaBets[k] = 0;
+
                     const betEl = document.getElementById('bet-val-' + k);
                     if (betEl) betEl.innerText = '0đ';
                 }
@@ -107,6 +124,7 @@ function rollBauCua() {
 
             gameState.gold += totalReturn;
 
+            const resBanner = document.getElementById('baucua-result');
             if (resBanner) {
                 resBanner.classList.remove('hidden');
                 const netProfit = totalReturn - totalBet;
