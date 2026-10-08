@@ -107,6 +107,12 @@ function gameLogicLoop() {
     }
 
     updateUI();
+
+        // Cập nhật giao diện Bếp nấu theo thời gian thực nếu đang mở Modal Bếp
+    const kitchenModal = document.getElementById('modal-kitchen');
+    if (kitchenModal && !kitchenModal.classList.contains('hidden') && typeof renderKitchenStoves === 'function') {
+        renderKitchenStoves();
+    }
 }
 
 // RENDER LOOP 3D (60 FPS)
