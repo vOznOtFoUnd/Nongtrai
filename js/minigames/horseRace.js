@@ -1,8 +1,15 @@
-let horseBetNumber = 1;
-
 // Mở modal đua ngựa
 function openHorseRaceModal() {
     openModal('modal-horse-race');
+}
+
+function getHorseBetAmount() {
+    const input = document.getElementById('horse-bet-amount');
+    if (!input) return 500;
+
+    const value = parseInt(input.value, 10);
+    if (!Number.isFinite(value)) return 500;
+    return Math.max(100, Math.min(value, gameState.gold || 100));
 }
 
 // Chọn con ngựa đặt cược (1 - 4)
@@ -21,14 +28,18 @@ function selectHorseBet(num) {
 function adjustHorseBet(amt) {
     const input = document.getElementById('horse-bet-amount');
     if (input) {
-        let cur = parseInt(input.value) || 100;
-        input.value = Math.max(100, cur + amt);
+        let cur = parseInt(input.value, 10) || 100;
+        const next = Math.max(100, cur + amt);
+        input.value = Math.min(next, gameState.gold || 100);
     }
 }
 
 // Bắt đầu cuộc đua
 function startHorseRace() {
-    const amount = parseInt(document.getElementById('horse-bet-amount').value) || 500;
+    const amount = getHorseBetAmount();
+    const input = document.getElementById('horse-bet-amount');
+    if (input) input.value = amount;
+
     if (gameState.gold < amount) {
         showToast("Thiếu Vàng! 🪙", "Bạn không có đủ vàng đặt cược!", "❌");
         return;
@@ -38,7 +49,10 @@ function startHorseRace() {
     updateUI();
 
     const resBanner = document.getElementById('horse-race-result');
-    if (resBanner) resBanner.classList.add('hidden');
+    if (resBanner) {
+        resBanner.classList.add('hidden');
+        resBanner.innerHTML = '';
+    }
 
     const btn = document.getElementById('btn-start-race');
     if (btn) btn.disabled = true;
