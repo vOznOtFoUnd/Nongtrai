@@ -56,9 +56,12 @@ let gameState = {
 // Mở khóa 6 ô đất đầu tiên mặc định
 for (let i = 0; i < 6; i++) gameState.unlockedPlots[i] = true;
 
-// Hàm lưu Game
+// Hàm lưu Game (Có lưu mốc thời gian thoát game)
 function saveGame() {
-    try { localStorage.setItem(CONFIG.SAVE_KEY, JSON.stringify(gameState)); } catch(e) {}
+    try { 
+        gameState.lastSavedAt = Date.now(); 
+        localStorage.setItem(CONFIG.SAVE_KEY, JSON.stringify(gameState)); 
+    } catch(e) {}
 }
 
 // Hàm tải Game
