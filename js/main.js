@@ -108,7 +108,7 @@ function gameLogicLoop() {
 
     updateUI();
 
-        // Cập nhật giao diện Bếp nấu theo thời gian thực nếu đang mở Modal Bếp
+    // Cập nhật giao diện Bếp nấu theo thời gian thực nếu đang mở Modal Bếp
     const kitchenModal = document.getElementById('modal-kitchen');
     if (kitchenModal && !kitchenModal.classList.contains('hidden') && typeof renderKitchenStoves === 'function') {
         renderKitchenStoves();
@@ -146,9 +146,79 @@ function animate3D() {
     }
 }
 
+// 🟢 HÀM TÍNH TÓAN & BÙ THỜI GIAN OFFLINE (CAP TỐI ĐA 2 NGÀY GAME = 48 PHÚT NGOÀI ĐỜI)
+function syncOfflineTimeWithCap() {
+    if (!gameState.lastSavedAt) return;
+
+    const now = Date.now();
+    const rawOfflineMs = now - gameState.lastSavedAt;
+    let offlineSecs = Math.floor(rawOfflineMs / 1000);
+
+    // Bỏ qua nếu offline quá ngắn (dưới 10 giây)
+    if (offlineSecs < 10) {
+        gameState.lastSavedAt = now;
+        return;
+    }
+
+    // 🔒 CAP TỐI ĐA: 2 Ngày Game = 2 * 24 phút = 48 phút (2,880 giây)
+    const MAX_GAME_DAYS_CAP = 2;
+    const MAX_OFFLINE_SECS = MAX_GAME_DAYS_CAP * REAL_SECS_PER_GAME_DAY; // 2880s
+    
+    // Siết thời gian tính toán không vượt quá 48 phút ngoài đời
+    const cappedOfflineSecs = Math.min(offlineSecs, MAX_OFFLINE_SECS);
+
+    // 1. Tính toán số ngày game trôi qua
+    gameState.dayTimeSeconds += cappedOfflineSecs;
+    const daysPassed = Math.floor(gameState.dayTimeSeconds / REAL_SECS_PER_GAME_DAY);
+
+    if (daysPassed > 0) {
+        gameState.gameDay += daysPassed;
+        gameState.dayTimeSeconds = gameState.dayTimeSeconds % REAL_SECS_PER_GAME_DAY;
+
+        // Trợ cấp đúng số ngày trôi qua (Tối đa 2 ngày = +1000 Vàng)
+        const bonusGold = daysPassed * 500;
+        gameState.gold += bonusGold;
+
+        showToast(
+            `Chào Mừng Trở Lại! 🌅`, 
+            `Nông trại đã trôi qua ${daysPassed} ngày. Bạn nhận +${bonusGold} 🪙 trợ cấp!`, 
+            '🪙', 
+            5000
+        );
+    }
+
+    // 2. Trừ năng lượng gia súc theo thời gian đã Cap (tối đa 48 phút)
+    ['chickens', 'cows', 'pigs'].forEach(type => {
+        if (gameState[type] && Array.isArray(gameState[type])) {
+            const decayRate = type === 'chickens' ? 0.3 : 0.2;
+            gameState[type].forEach(a => {
+                if (a.hunger === undefined) a.hunger = 100;
+
+                // Trừ điểm hunger theo thời gian tối đa 48 phút
+                a.hunger = Math.max(0, a.hunger - (decayRate * cappedOfflineSecs));
+
+                if (a.hunger <= 0) {
+                    a.hungry = true;
+                    if (!a.starvingStartAt) a.starvingStartAt = now;
+                    if (cappedOfflineSecs >= 60) a.sick = true; 
+                } else if (a.hunger <= 40) {
+                    a.hungry = true;
+                }
+            });
+        }
+    });
+
+    // Cập nhật mốc lưu mới
+    gameState.lastSavedAt = now;
+}
+
 // KHỞI CHẠY GAME
 function init3D() {
     loadGame();
+
+    // 🟢 GỌI HÀM BÙ THỜI GIAN OFFLINE TẠI ĐÂY:
+    syncOfflineTimeWithCap();
+
     if (!gameState.quests || gameState.quests.length === 0) generateDailyQuests();
     if (!gameState.marketOrders || gameState.marketOrders.length === 0) generateMarketOrders();
 
