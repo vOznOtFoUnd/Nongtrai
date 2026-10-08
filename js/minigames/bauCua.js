@@ -20,7 +20,7 @@ function addBauCuaBet(type) {
     updateUI();
 }
 
-// Đặt lại các cược
+// Đặt lại các cược (Hoàn trả tiền về ví)
 function clearBauCuaBets() {
     Object.keys(bauCuaBets).forEach(k => {
         gameState.gold += bauCuaBets[k];
@@ -31,7 +31,7 @@ function clearBauCuaBets() {
     updateUI();
 }
 
-// Xóc đĩa Bầu Cua
+// Xóc đĩa Bầu Cua chuẩn xác suất ngẫu nhiên
 function rollBauCua() {
     const totalBet = Object.values(bauCuaBets).reduce((a, b) => a + b, 0);
     if (totalBet <= 0) {
@@ -48,7 +48,15 @@ function rollBauCua() {
     let rolls = 0;
     const diceContainer = document.getElementById('dice-container');
 
+    // Tạo kết quả 3 xúc xắc hoàn toàn ngẫu nhiên và độc lập bằng Crypto/Random chuẩn
+    const finalIndices = [
+        Math.floor(Math.random() * 6),
+        Math.floor(Math.random() * 6),
+        Math.floor(Math.random() * 6)
+    ];
+
     const anim = setInterval(() => {
+        // Hiệu ứng cuộn xúc xắc ngẫu nhiên cho đẹp mắt
         const r1 = Math.floor(Math.random() * 6);
         const r2 = Math.floor(Math.random() * 6);
         const r3 = Math.floor(Math.random() * 6);
@@ -63,39 +71,49 @@ function rollBauCua() {
         if (rolls > 15) {
             clearInterval(anim);
 
-            const final1 = Math.floor(Math.random() * 6);
-            const final2 = Math.floor(Math.random() * 6);
-            const final3 = Math.floor(Math.random() * 6);
-
+            // Hiển thị kết quả chuẩn đã quay từ trước
             if (diceContainer && diceContainer.children.length >= 3) {
-                diceContainer.children[0].innerText = icons[final1];
-                diceContainer.children[1].innerText = icons[final2];
-                diceContainer.children[2].innerText = icons[final3];
+                diceContainer.children[0].innerText = icons[finalIndices[0]];
+                diceContainer.children[1].innerText = icons[finalIndices[1]];
+                diceContainer.children[2].innerText = icons[finalIndices[2]];
             }
 
-            const results = [keys[final1], keys[final2], keys[final3]];
-            let totalWin = 0;
+            const results = [keys[finalIndices[0]], keys[finalIndices[1]], keys[finalIndices[2]]];
+            let totalReturn = 0; // Tổng tiền trả lại cho người chơi
 
+            // TÍNH TOÁN TRẢ THƯỞNG CHUẨN LUẬT BẦU CUA
             Object.keys(bauCuaBets).forEach(k => {
-                const count = results.filter(r => r === k).length;
-                if (count > 0) {
-                    totalWin += bauCuaBets[k] * (count + 1);
+                const betAmount = bauCuaBets[k];
+                if (betAmount > 0) {
+                    const matchCount = results.filter(r => r === k).length;
+                    if (matchCount > 0) {
+                        // Trả lại tiền cược (vốn) + tiền thưởng (vốn * matchCount)
+                        totalReturn += betAmount + (betAmount * matchCount);
+                    }
+                    // Reset tiền cược sau khi tính xong
+                    bauCuaBets[k] = 0;
+                    const betEl = document.getElementById('bet-val-' + k);
+                    if (betEl) betEl.innerText = '0đ';
                 }
-                bauCuaBets[k] = 0;
-                const betEl = document.getElementById('bet-val-' + k);
-                if (betEl) betEl.innerText = '0đ';
             });
 
-            gameState.gold += totalWin;
+            // Cộng tiền thưởng/hoàn vốn vào kho vàng
+            gameState.gold += totalReturn;
+
             const resBanner = document.getElementById('baucua-result');
             if (resBanner) {
                 resBanner.classList.remove('hidden');
-                if (totalWin > 0) {
+                const netProfit = totalReturn - totalBet; // Lợi nhuận ròng
+
+                if (netProfit > 0) {
                     resBanner.className = 'mb-3 p-3 rounded-2xl text-center font-black border shadow-lg text-sm sm:text-base bg-emerald-900 border-emerald-500 text-emerald-200';
-                    resBanner.innerHTML = `🎉 Trúng Lớn! Nhận về +${totalWin.toLocaleString()} 🪙!`;
+                    resBanner.innerHTML = `🎉 Trúng Lớn! Nhận lại ${totalReturn.toLocaleString()} 🪙 (Lời +${netProfit.toLocaleString()} 🪙)!`;
+                } else if (netProfit === 0) {
+                    resBanner.className = 'mb-3 p-3 rounded-2xl text-center font-black border shadow-lg text-sm sm:text-base bg-amber-900 border-amber-500 text-amber-200';
+                    resBanner.innerHTML = `⚖️ Hòa Tiền! Nhận lại ${totalReturn.toLocaleString()} 🪙 vốn cược.`;
                 } else {
                     resBanner.className = 'mb-3 p-3 rounded-2xl text-center font-black border shadow-lg text-sm sm:text-base bg-rose-900 border-rose-500 text-rose-200';
-                    resBanner.innerHTML = `💸 Rất tiếc, không trúng cửa nào! Chúc bạn may mắn lần sau.`;
+                    resBanner.innerHTML = `💸 Rất tiếc! Bạn thua ${Math.abs(netProfit).toLocaleString()} 🪙. Chúc may mắn lần sau!`;
                 }
             }
 
