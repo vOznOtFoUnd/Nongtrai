@@ -4,15 +4,15 @@ function gameLogicLoop() {
 
     gameState.dayTimeSeconds += 1;
 
-    // Cập nhật thời tiết theo giờ trong game
+    // 1. Cập nhật thời tiết
     if (gameState.dayTimeSeconds % REAL_SECS_PER_GAME_HOUR === 0) {
         if (gameState.currentWeather !== 'sunny') {
-            if (Math.random() < 0.7) {
+            if (Math.random() < 0.6) {
                 setGameWeather('sunny');
                 showToast('Trời Tạnh Rồi! ☀️', 'Trời đã hửng nắng đẹp trở lại!', '☀️');
             }
         } else {
-            if (Math.random() < 0.15) {
+            if (Math.random() < 0.08) {
                 const randomBadWeather = ['rainy', 'cloudy', 'snowy'][Math.floor(Math.random() * 3)];
                 setGameWeather(randomBadWeather);
                 showToast('Thay Đổi Thời Tiết 🌦️', `Trời bắt đầu có ${WEATHER_NAMES[randomBadWeather]}!`, WEATHER_ICONS[randomBadWeather]);
@@ -20,68 +20,91 @@ function gameLogicLoop() {
         }
     }
 
-    // Sang ngày mới
+    // 2. Sang ngày mới
     if (gameState.dayTimeSeconds >= REAL_SECS_PER_GAME_DAY) {
         gameState.dayTimeSeconds = 0;
         gameState.gameDay += 1;
-
         gameState.gold += 500;
 
         setGameWeather('sunny');
         generateDailyQuests();
         
-        showToast(`Ngày Mới Bắt Đầu! 🌅`, `Chào mừng tới Ngày ${gameState.gameDay}. Bạn nhận được +500 🪙 trợ cấp ngày mới!`, '🪙');
+        showToast(`Ngày Mới Bắt Đầu! 🌅`, `Chào mừng tới Ngày ${gameState.gameDay}. Bạn nhận +500 🪙 trợ cấp!`, '🪙');
     }
 
-    // Tự động hồi thể lực chậm
+    // 3. Tự động hồi thể lực
     if (gameState.staminaFloat < gameState.maxStamina) {
-        gameState.staminaFloat = Math.min(gameState.maxStamina, gameState.staminaFloat + 0.05);
+        gameState.staminaFloat = Math.min(gameState.maxStamina, gameState.staminaFloat + 0.1);
         gameState.stamina = Math.floor(gameState.staminaFloat);
     }
 
-    // Xử lý Gia súc đói / bệnh ngẫu nhiên
+    // 4. LOGIC MỚI: GIA SÚC DÙNG THANH NĂNG LƯỢNG (HUNGER METER)
     ['chickens', 'cows', 'pigs'].forEach(type => {
         if (gameState[type] && Array.isArray(gameState[type])) {
             gameState[type].forEach(a => {
-                if (gameState.dayTimeSeconds % 15 === 0) {
-                    if (!a.sick && a.lastSickDay !== gameState.gameDay) {
-                        if (a.hungry) {
-                            if (Math.random() < 0.5) { 
-                                a.sick = true;
-                                a.lastSickDay = gameState.gameDay;
-                                showToast("Cảnh Báo Gia Súc 💊", "Có vật nuôi bị bệnh! Hãy dùng Thuốc Thú Y chữa ngay.", "⚠️");
-                            }
-                        } else {
-                            if (Math.random() < 0.2) {
-                                a.hungry = true;
-                            }
-                        }
+                // Mặc định khởi tạo năng lượng nếu chưa có
+                if (a.hunger === undefined) a.hunger = 100;
+
+                // Giảm năng lượng mỗi giây (Mỗi loại giảm độ nhanh khác nhau)
+                const decayRate = type === 'chickens' ? 0.3 : 0.2;
+                a.hunger = Math.max(0, a.hunger - decayRate);
+
+                // Cập nhật trạng thái Đói / Bệnh dựa trên điểm hunger
+                if (a.hunger <= 0) {
+                    a.hungry = true;
+                    // Bắt đầu đếm thời gian nhịn đói (mốc kiệt sức)
+                    if (!a.starvingStartAt) a.starvingStartAt = now;
+
+                    // Nhịn đói liên tục quá 60 giây (60,000 ms) -> Bắt đầu phát BỆNH!
+                    if (!a.sick && (now - a.starvingStartAt) >= 60000) {
+                        a.sick = true;
+                        showToast("Cảnh Báo Gia Súc 💊", "Vật nuôi bị bỏ đói quá lâu nên đã bị bệnh!", "⚠️");
                     }
+                } else if (a.hunger <= 40) {
+                    a.hungry = true; // Hiện icon đòi ăn
+                } else {
+                    a.hungry = false;
+                    a.starvingStartAt = null; // Reset đếm giờ nhịn đói khi được ăn no
                 }
             });
         }
     });
 
-    // Xử lý Cây trồng xuất hiện sâu bệnh / héo chết
-    gameState.plots.forEach((p, idx) => {
-        if (p.cropId && !p.isDead) {
-            const crop = CROPS_DB[p.cropId];
-            const effTime = crop.growTime - (p.reducedSecs || 0);
-            const elapsed = (now - p.plantedAt) / 1000;
+    // 5. LOGIC MỚI: SÂU BỆNH THEO THỜI TIẾT & CÂY CHÍN NGÂM QUÁ LÂU
+    if (gameState.plots && Array.isArray(gameState.plots)) {
+        gameState.plots.forEach((p, idx) => {
+            if (p.cropId && !p.isDead) {
+                const crop = CROPS_DB[p.cropId];
+                if (!crop) return;
 
-            if (elapsed < effTime && !p.hasPest && !p.pestImmune && Math.random() < 0.02) {
-                p.hasPest = true;
-                p.pestAppearedAt = now;
-                updatePlotVisual(idx, true);
-            }
+                const effTime = crop.growTime - (p.reducedSecs || 0);
+                const elapsed = (now - p.plantedAt) / 1000;
 
-            if (p.hasPest && (now - p.pestAppearedAt) >= 60000) {
-                p.isDead = true;
-                p.hasPest = false;
-                updatePlotVisual(idx, true);
+                // ĐIỀU KIỆN 1: Cây đã chín nhưng để quá 3 phút (180s) không thu hoạch -> Dễ bị sâu
+                const isOverripe = elapsed >= (effTime + 180);
+
+                // ĐIỀU KIỆN 2: Thời tiết mưa/mây làm tăng nguy cơ sâu bệnh
+                const isBadWeather = ['rainy', 'cloudy'].includes(gameState.currentWeather);
+
+                if (!p.hasPest && !p.pestImmune) {
+                    // Chỉ kích hoạt tỷ lệ dính sâu khi thời tiết xấu HOẶC cây bị ngâm quá lâu
+                    if ((isBadWeather && Math.random() < 0.002) || (isOverripe && Math.random() < 0.01)) {
+                        p.hasPest = true;
+                        p.pestAppearedAt = now;
+                        if (typeof updatePlotVisual === 'function') updatePlotVisual(idx, true);
+                        showToast("Sâu Bệnh! 🐛", "Độ ẩm cao hoặc cây quá lứa thu hoạch đã xuất hiện sâu!", "🐛");
+                    }
+                }
+
+                // Cây bị sâu quá 2 phút không bắt -> Cây chết
+                if (p.hasPest && (now - p.pestAppearedAt) >= 120000) {
+                    p.isDead = true;
+                    p.hasPest = false;
+                    if (typeof updatePlotVisual === 'function') updatePlotVisual(idx, true);
+                }
             }
-        }
-    });
+        });
+    }
 
     updateUI();
 }
