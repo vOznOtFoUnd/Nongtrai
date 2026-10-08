@@ -29,10 +29,43 @@ const SUPPLIES_DB = {
 };
 
 const RECIPES_DB = {
-    // --- KHU VỰC CHẾ BIẾN THỨC ĂN NÔNG TRẠI (TỰ SẢN XUẤT) ---
-    craft_feed_chicken: { id: 'craft_feed_chicken', name: 'Trộn Cám Gà (x3)', cost: 0, cookTime: 15, sellPrice: 40, ingredients: { rice: 2 }, icon: '🌾', isFeed: true, outputItem: 'feed_chicken', outputQty: 3 },
-    craft_feed_cow: { id: 'craft_feed_cow', name: 'Ủ Cỏ Tươi Cho Bò (x3)', cost: 0, cookTime: 20, sellPrice: 60, ingredients: { corn: 2 }, icon: '🌿', isFeed: true, outputItem: 'feed_cow', outputQty: 3 },
-    craft_feed_pig: { id: 'craft_feed_pig', name: 'Chế Thức Ăn Heo (x3)', cost: 0, cookTime: 25, sellPrice: 70, ingredients: { pumpkin: 1, corn: 1 }, icon: '🥔', isFeed: true, outputItem: 'feed_pig', outputQty: 3 },
+    // --- KHU VỰC CHẾ BIẾN THỨC ĂN NÔNG TRẠI (TỰ SẢN XUẤT LỜI HƠN MUA SHOP) ---
+    craft_feed_chicken: { 
+        id: 'craft_feed_chicken', 
+        name: 'Trộn Cám Gà (x3)', 
+        cost: 0, 
+        cookTime: 12, 
+        sellPrice: 40, 
+        ingredients: { rice: 1 }, // 1 Lúa (25đ) -> 3 Cám Gà (giá vốn 8.3đ/cái vs Shop 15đ)
+        icon: '🌾', 
+        isFeed: true, 
+        outputItem: 'feed_chicken', 
+        outputQty: 3 
+    },
+    craft_feed_cow: { 
+        id: 'craft_feed_cow', 
+        name: 'Ủ Cỏ Tươi Cho Bò (x5)', 
+        cost: 0, 
+        cookTime: 18, 
+        sellPrice: 60, 
+        ingredients: { corn: 1 }, // 1 Ngô (65đ) -> 5 Cỏ Tươi (giá vốn 13đ/cái vs Shop 25đ)
+        icon: '🌿', 
+        isFeed: true, 
+        outputItem: 'feed_cow', 
+        outputQty: 5 
+    },
+    craft_feed_pig: { 
+        id: 'craft_feed_pig', 
+        name: 'Chế Thức Ăn Heo (x18)', 
+        cost: 0, 
+        cookTime: 25, 
+        sellPrice: 120, 
+        ingredients: { pumpkin: 1 }, // 1 Bí Ngô (230đ) -> 18 Thức Ăn Heo (giá vốn 12.7đ/cái vs Shop 20đ)
+        icon: '🥔', 
+        isFeed: true, 
+        outputItem: 'feed_pig', 
+        outputQty: 18 
+    },
 
     // --- CÁC MÓN ĂN CHẾ BIẾN TẬN DỤNG TẤT CẢ NÔNG SẢN & VẬT NUÔI ---
     rice_bowl: { id: 'rice_bowl', name: 'Cơm Trắng Dinh Dưỡng', cost: 0, cookTime: 20, sellPrice: 80, staminaRestore: 30, ingredients: { rice: 2 }, icon: '🍚' },
