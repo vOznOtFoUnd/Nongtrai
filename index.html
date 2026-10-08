@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Avatar Mini Farm 3D - Phiên Bản Hoàn Thiện Nâng Cấp</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- OrbitControls -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="text-slate-800">
+
+    <!-- 3D Canvas -->
+    <div id="canvas-container"></div>
+
+    <!-- FLOATING HUD OVERLAY CONTAINER FOR CROPS, ANIMALS, FISH & TIMERS -->
+    <div id="floating-hud-container" class="ui-layer"></div>
+
+    <!-- UI Overlay Layer -->
+    <div class="ui-layer flex flex-col justify-between p-3 select-none">
+        <!-- Top Navigation Bar -->
+        <div class="flex justify-between items-start w-full gap-2">
+            <!-- Player Stats -->
+            <div class="interactive-ui glass-panel rounded-2xl p-2 px-3 flex items-center gap-3 shadow-xl">
+                <div class="relative">
+                    <div id="avatar-icon" class="w-12 h-12 rounded-full bg-gradient-to-tr from-amber-400 to-yellow-200 border-2 border-white flex items-center justify-center text-2xl shadow">🧑‍🌾</div>
+                    <span id="player-level-badge" class="absolute -bottom-1 -right-1 bg-red-500 text-white font-black text-[11px] px-1.5 py-0.5 rounded-full border border-white">Lv.1</span>
+                </div>
+                <div>
+                    <div class="font-extrabold text-slate-800 text-xs sm:text-sm">Chibi Farmer</div>
+                    <div class="w-28 sm:w-32 bg-slate-200 h-2.5 rounded-full overflow-hidden border border-slate-300 mt-1">
+                        <div id="exp-bar" class="bg-gradient-to-r from-emerald-400 to-green-500 h-full w-0 transition-all duration-300"></div>
+                    </div>
+                    <span id="exp-text" class="text-[9px] text-slate-500 font-bold">0 / 100 EXP</span>
+                </div>
+            </div>
+
+            <!-- Game Time, Weather & Resources -->
+            <div class="flex flex-col gap-1.5 items-end">
+                <div class="interactive-ui glass-panel rounded-full px-3.5 py-1 flex items-center gap-2 shadow font-bold text-slate-800 text-xs">
+                    <span id="weather-icon" class="text-base">☀️</span>
+                    <span id="day-counter-display" class="text-amber-700 font-black">Ngày 1</span>
+                    <span class="text-slate-300">|</span>
+                    <span id="game-time-display" class="text-sky-700 font-mono font-bold">06:00</span>
+                </div>
+                <div class="interactive-ui glass-panel rounded-full px-3.5 py-1 flex items-center gap-2 shadow font-black text-amber-600 text-xs sm:text-sm">
+                    <span class="text-base">🪙</span>
+                    <span id="gold-display">2,000</span>
+                </div>
+                <div class="interactive-ui glass-panel rounded-full px-3.5 py-1 flex items-center gap-2 shadow font-bold text-sky-600 text-xs">
+                    <span class="text-sm">⚡</span>
+                    <span id="stamina-display">100 / 100</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Spacer -->
+        <div class="pointer-events-none"></div>
+
+        <!-- Bottom Tool Bar -->
+        <div class="interactive-ui flex justify-center w-full mb-1">
+            <div class="glass-panel rounded-3xl p-2 px-3 flex items-center gap-2 sm:gap-3 shadow-2xl border-2 border-amber-300/80 max-w-full overflow-x-auto">
+                <button onclick="selectTool('hand')" id="tool-hand" class="tool-btn flex flex-col items-center justify-center w-12 h-12 rounded-2xl bg-amber-500 text-white shadow-md transition-all scale-105">
+                    <span class="text-xl">✋</span>
+                    <span class="text-[9px] font-bold">Bắt sâu/Chăm</span>
+                </button>
+                <button onclick="selectTool('water')" id="tool-water" class="tool-btn flex flex-col items-center justify-center w-12 h-12 rounded-2xl bg-slate-200 text-slate-700 hover:bg-amber-100 shadow-md transition-all">
+                    <span class="text-xl">💧</span>
+                    <span class="text-[9px] font-bold">Tưới nước</span>
+                </button>
+                <div class="w-px h-8 bg-slate-300/80 mx-0.5"></div>
+                <button onclick="openModal('modal-kitchen')" class="flex flex-col items-center justify-center w-11 h-11 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white shadow transition relative">
+                    <span class="text-lg">🍳</span>
+                    <span class="text-[9px] font-bold">4 Bếp Ăn</span>
+                </button>
+                <button onclick="openModal('modal-shop')" class="flex flex-col items-center justify-center w-11 h-11 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white shadow transition">
+                    <span class="text-lg">🛒</span>
+                    <span class="text-[9px] font-bold">Cửa hàng</span>
+                </button>
+                <button onclick="openModal('modal-inventory')" class="flex flex-col items-center justify-center w-11 h-11 rounded-2xl bg-sky-500 hover:bg-sky-600 text-white shadow transition">
+                    <span class="text-lg">🎒</span>
+                    <span class="text-[9px] font-bold">Túi đồ</span>
+                </button>
+                <button onclick="openModal('modal-market')" class="flex flex-col items-center justify-center w-11 h-11 rounded-2xl bg-orange-500 hover:bg-orange-600 text-white shadow transition">
+                    <span class="text-lg">🏪</span>
+                    <span class="text-[9px] font-bold">Sạp hàng</span>
+                </button>
+                <button onclick="openModal('modal-quests')" class="flex flex-col items-center justify-center w-11 h-11 rounded-2xl bg-purple-500 hover:bg-purple-600 text-white shadow transition relative">
+                    <span class="text-lg">📜</span>
+                    <span class="text-[9px] font-bold">Nhiệm vụ</span>
+                    <span id="quest-badge" class="hidden absolute top-0 right-0 w-3 h-3 bg-red-500 rounded-full border border-white animate-ping"></span>
+                </button>
+                <div class="w-px h-8 bg-slate-300/80 mx-0.5"></div>
+                <!-- Minigames -->
+                <button onclick="openHorseRaceModal()" class="flex flex-col items-center justify-center w-11 h-11 rounded-2xl bg-rose-500 hover:bg-rose-600 text-white shadow transition">
+                    <span class="text-lg">🐎</span>
+                    <span class="text-[9px] font-bold">Đua ngựa</span>
+                </button>
+                <button onclick="openBauCuaModal()" class="flex flex-col items-center justify-center w-11 h-11 rounded-2xl bg-indigo-500 hover:bg-indigo-600 text-white shadow transition">
+                    <span class="text-lg">🎲</span>
+                    <span class="text-[9px] font-bold">Bầu cua</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST POPUP CONTAINER -->
+    <div id="toast-container" class="fixed bottom-28 right-5 z-50 flex flex-col gap-2.5 pointer-events-none max-w-xs w-full px-2"></div>
+
+    <!-- MODAL DIALOG -->
+    <div id="modal-dialog" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="glass-panel w-full max-w-sm rounded-3xl p-5 shadow-2xl text-center">
+            <div id="dialog-icon" class="text-5xl mb-3">💡</div>
+            <h3 id="dialog-title" class="text-lg font-black text-slate-800 mb-2">Thông báo</h3>
+            <p id="dialog-msg" class="text-xs sm:text-sm text-slate-600 mb-6 leading-relaxed">Nội dung...</p>
+            <div id="dialog-buttons" class="flex gap-3 justify-center">
+                <button onclick="closeModal('modal-dialog')" class="px-5 py-2.5 bg-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-300 transition w-full">Đóng</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SEED SELECTION MODAL -->
+    <div id="modal-seeds" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 hidden flex items-center justify-center p-4">
+        <div class="glass-panel w-full max-w-md rounded-3xl p-5 shadow-2xl flex flex-col max-h-[80vh]">
+            <div class="flex justify-between items-center mb-3">
+                <h3 class="text-base sm:text-lg font-black text-slate-800 flex items-center gap-2">🌱 Chọn Hạt Giống Trồng</h3>
+                <button onclick="closeModal('modal-seeds')" class="w-8 h-8 rounded-full bg-slate-200 text-slate-600 font-bold hover:bg-slate-300">✕</button>
+            </div>
+            <div id="seed-list" class="grid grid-cols-2 gap-3 overflow-y-auto p-1 flex-1"></div>
+        </div>
+    </div>
+
+    <!-- TREE SAPLING PLANTING MODAL -->
+    <div id="modal-tree-saplings" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 hidden flex items-center justify-center p-4">
+        <div class="glass-panel w-full max-w-md rounded-3xl p-5 shadow-2xl flex flex-col max-h-[80vh]">
+            <div class="flex justify-between items-center mb-3">
+                <h3 class="text-base sm:text-lg font-black text-slate-800 flex items-center gap-2">🌳 Chọn Cây Giống Ăn Quả</h3>
+                <button onclick="closeModal('modal-tree-saplings')" class="w-8 h-8 rounded-full bg-slate-200 text-slate-600 font-bold hover:bg-slate-300">✕</button>
+            </div>
+            <div id="sapling-list" class="grid grid-cols-2 gap-3 overflow-y-auto p-1 flex-1"></div>
+        </div>
+    </div>
+
+    <!-- ANIMAL PEN MANAGEMENT MODAL -->
+    <div id="modal-animal-pen" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 hidden flex items-center justify-center p-4">
+        <div class="glass-panel w-full max-w-md rounded-3xl p-5 shadow-2xl flex flex-col">
+            <div class="flex justify-between items-center mb-3">
+                <h3 id="animal-pen-title" class="text-base sm:text-lg font-black text-slate-800 flex items-center gap-2">🏡 Quản Lý Chuồng</h3>
+                <button onclick="closeModal('modal-animal-pen')" class="w-8 h-8 rounded-full bg-slate-200 text-slate-600 font-bold hover:bg-slate-300">✕</button>
+            </div>
+            <p id="animal-pen-status" class="text-xs text-slate-600 mb-4 bg-slate-100 p-2.5 rounded-xl border border-slate-200 leading-relaxed">Thông tin chuồng...</p>
+            <div class="grid grid-cols-2 gap-3 mb-2">
+                <button onclick="executePenAction('feed')" class="p-3 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl font-bold text-xs flex flex-col items-center gap-1 shadow">
+                    <span class="text-2xl">🌾</span><span>Cho Ăn (-1⚡)</span>
+                </button>
+                <button onclick="executePenAction('add')" class="p-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl font-bold text-xs flex flex-col items-center gap-1 shadow">
+                    <span class="text-2xl">➕</span><span>Thêm Vật Nuôi</span>
+                </button>
+                <button onclick="executePenAction('harvest')" class="p-3 bg-sky-500 hover:bg-sky-600 text-white rounded-2xl font-bold text-xs flex flex-col items-center gap-1 shadow">
+                    <span class="text-2xl">🧺</span><span>Thu Hoạch Sản Phẩm</span>
+                </button>
+                <button onclick="executePenAction('heal')" class="p-3 bg-rose-500 hover:bg-rose-600 text-white rounded-2xl font-bold text-xs flex flex-col items-center gap-1 shadow">
+                    <span class="text-2xl">💊</span><span>Chữa Bệnh</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- FISH POND MODAL -->
+    <div id="modal-fish-select" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 hidden flex items-center justify-center p-4">
+        <div class="glass-panel w-full max-w-md rounded-3xl p-5 shadow-2xl flex flex-col max-h-[80vh]">
+            <div class="flex justify-between items-center mb-3">
+                <h3 class="text-base sm:text-lg font-black text-slate-800 flex items-center gap-2">🐟 Quản Lý Ao Cá</h3>
+                <button onclick="closeModal('modal-fish-select')" class="w-8 h-8 rounded-full bg-slate-200 text-slate-600 font-bold hover:bg-slate-300">✕</button>
+            </div>
+            <button onclick="harvestFishFromPond()" class="mb-3 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-black text-xs rounded-2xl shadow">🧺 Thu Hoạch Tất Cả Cá Lớn</button>
+            <div id="fish-stock-list" class="grid grid-cols-2 gap-3 overflow-y-auto p-1 flex-1"></div>
+        </div>
+    </div>
+
+    <!-- SHOP MODAL -->
+    <div id="modal-shop" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 hidden flex items-center justify-center p-3 sm:p-4">
+        <div class="glass-panel w-full max-w-lg rounded-3xl p-4 sm:p-5 shadow-2xl flex flex-col max-h-[90vh]">
+            <div class="flex justify-between items-center mb-1">
+                <div>
+                    <h3 class="text-lg sm:text-xl font-black text-slate-800 flex items-center gap-2">🛒 Cửa Hàng Nông Trại</h3>
+                    <p class="text-[11px] text-amber-600 font-semibold">Mua & bán hạt giống, vật nuôi, nông sản, món ăn</p>
+                </div>
+                <button onclick="closeModal('modal-shop')" class="w-8 h-8 rounded-full bg-slate-200 text-slate-600 font-bold hover:bg-slate-300">✕</button>
+            </div>
+
+            <div class="flex items-center justify-between bg-slate-100 p-2 rounded-2xl mb-2 text-xs font-bold border">
+                <span>Số lượng thao tác:</span>
+                <div class="flex items-center gap-2">
+                    <button onclick="adjustShopQty(-1)" class="w-7 h-7 bg-white rounded-xl shadow border font-black text-slate-700">-</button>
+                    <span id="shop-buy-qty" class="w-8 text-center text-amber-600 font-black">1</span>
+                    <button onclick="adjustShopQty(1)" class="w-7 h-7 bg-white rounded-xl shadow border font-black text-slate-700">+</button>
+                    <button onclick="adjustShopQty(5)" class="px-2 py-1 bg-amber-500 text-white rounded-xl text-[10px] shadow">+5</button>
+                </div>
+            </div>
+
+            <div class="flex gap-1 mb-3 bg-slate-200/80 p-1 rounded-2xl overflow-x-auto text-xs font-bold">
+                <button onclick="switchShopTab('seeds')" id="tab-shop-seeds" class="shop-tab-btn flex-1 py-2 px-2 rounded-xl bg-amber-500 text-white shadow whitespace-nowrap">🌱 Hạt Giống</button>
+                <button onclick="switchShopTab('trees')" id="tab-shop-trees" class="shop-tab-btn flex-1 py-2 px-2 rounded-xl text-slate-600 hover:bg-white/50 whitespace-nowrap">🌳 Cây Giống</button>
+                <button onclick="switchShopTab('animals')" id="tab-shop-animals" class="shop-tab-btn flex-1 py-2 px-2 rounded-xl text-slate-600 hover:bg-white/50 whitespace-nowrap">🐥 Vật Nuôi</button>
+                <button onclick="switchShopTab('recipes')" id="tab-shop-recipes" class="shop-tab-btn flex-1 py-2 px-2 rounded-xl text-slate-600 hover:bg-white/50 whitespace-nowrap">📜 Công Thức</button>
+                <button onclick="switchShopTab('supplies')" id="tab-shop-supplies" class="shop-tab-btn flex-1 py-2 px-2 rounded-xl text-slate-600 hover:bg-white/50 whitespace-nowrap">💊 Vật Tư</button>
+                <button onclick="switchShopTab('sell')" id="tab-shop-sell" class="shop-tab-btn flex-1 py-2 px-2 rounded-xl text-slate-600 hover:bg-white/50 whitespace-nowrap">💰 Bán Đồ</button>
+            </div>
+            <div id="shop-items-container" class="grid grid-cols-1 sm:grid-cols-2 gap-3 overflow-y-auto p-1 flex-1"></div>
+        </div>
+    </div>
+
+    <!-- INVENTORY MODAL -->
+    <div id="modal-inventory" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 hidden flex items-center justify-center p-4">
+        <div class="glass-panel w-full max-w-lg rounded-3xl p-5 shadow-2xl flex flex-col max-h-[85vh]">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg sm:text-xl font-black text-slate-800 flex items-center gap-2">🎒 Túi Đồ Nông Dân</h3>
+                <button onclick="closeModal('modal-inventory')" class="w-8 h-8 rounded-full bg-slate-200 text-slate-600 font-bold hover:bg-slate-300">✕</button>
+            </div>
+            <div id="inventory-container" class="grid grid-cols-2 sm:grid-cols-3 gap-3 overflow-y-auto p-1 flex-1"></div>
+        </div>
+    </div>
+
+    <!-- 4-STOVE KITCHEN MODAL -->
+    <div id="modal-kitchen" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 hidden flex items-center justify-center p-4">
+        <div class="glass-panel w-full max-w-xl rounded-3xl p-5 shadow-2xl flex flex-col max-h-[90vh]">
+            <div class="flex justify-between items-center mb-2">
+                <div>
+                    <h3 class="text-lg sm:text-xl font-black text-slate-800 flex items-center gap-2">🍳 Khu Vực 4 Bếp Nấu Ăn</h3>
+                    <p class="text-xs text-slate-500">Mở khóa bếp mới theo level để chế biến đồng thời nhiều món ăn!</p>
+                </div>
+                <button onclick="closeModal('modal-kitchen')" class="w-8 h-8 rounded-full bg-slate-200 text-slate-600 font-bold hover:bg-slate-300">✕</button>
+            </div>
+
+            <!-- Stove Selector Tabs -->
+            <div id="kitchen-stoves-tabs" class="grid grid-cols-4 gap-2 mb-3"></div>
+
+            <!-- Selected Stove Section -->
+            <div id="stove-cooking-status" class="bg-amber-50 rounded-2xl p-3 border border-amber-200 mb-3 text-xs"></div>
+
+            <div id="kitchen-recipes-container" class="grid grid-cols-1 sm:grid-cols-2 gap-3 overflow-y-auto p-1 flex-1"></div>
+        </div>
+    </div>
+
+    <!-- MARKET MODAL -->
+    <div id="modal-market" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 hidden flex items-center justify-center p-4">
+        <div class="glass-panel w-full max-w-lg rounded-3xl p-5 shadow-2xl flex flex-col max-h-[85vh]">
+            <div class="flex justify-between items-center mb-1">
+                <div>
+                    <h3 class="text-lg sm:text-xl font-black text-slate-800 flex items-center gap-2">🏪 Sạp Hàng Dân Làng</h3>
+                    <p class="text-xs text-amber-600 font-semibold">Tự động làm mới đơn hàng đa dạng khi hoàn thành tất cả đơn!</p>
+                </div>
+                <button onclick="closeModal('modal-market')" class="w-8 h-8 rounded-full bg-slate-200 text-slate-600 font-bold hover:bg-slate-300">✕</button>
+            </div>
+            <div id="market-orders-container" class="flex flex-col gap-3 overflow-y-auto p-1 flex-1 mt-2"></div>
+        </div>
+    </div>
+
+    <!-- QUESTS MODAL -->
+    <div id="modal-quests" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 hidden flex items-center justify-center p-4">
+        <div class="glass-panel w-full max-w-md rounded-3xl p-5 shadow-2xl flex flex-col max-h-[85vh]">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg sm:text-xl font-black text-slate-800 flex items-center gap-2">📜 Nhiệm Vụ Hàng Ngày</h3>
+                <button onclick="closeModal('modal-quests')" class="w-8 h-8 rounded-full bg-slate-200 text-slate-600 font-bold hover:bg-slate-300">✕</button>
+            </div>
+            <div id="quests-container" class="flex flex-col gap-3 overflow-y-auto p-1 flex-1"></div>
+        </div>
+    </div>
+
+    <!-- HORSE RACE MODAL -->
+    <div id="modal-horse-race" class="fixed inset-0 bg-black/75 backdrop-blur-md z-50 hidden flex items-center justify-center p-3 sm:p-4">
+        <div class="glass-dark text-white w-full max-w-xl rounded-3xl p-4 sm:p-6 shadow-2xl flex flex-col">
+            <div class="flex justify-between items-center mb-3">
+                <h3 class="text-lg sm:text-xl font-black text-amber-400 flex items-center gap-2">🐎 Trường Đua Ngựa Chibi</h3>
+                <button onclick="closeModal('modal-horse-race')" class="w-8 h-8 rounded-full bg-slate-700 text-slate-200 font-bold hover:bg-slate-600">✕</button>
+            </div>
+
+            <div id="horse-race-result" class="hidden mb-3 p-3 rounded-2xl text-center font-black border shadow-lg text-sm sm:text-base"></div>
+
+            <div class="bg-emerald-900/90 rounded-2xl p-3 border border-amber-500/50 mb-4 relative overflow-hidden">
+                <div class="space-y-3 relative z-10">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-bold w-16 text-rose-300">#1 Đỏ (x4)</span>
+                        <div class="flex-1 bg-emerald-950/80 h-8 rounded-full relative overflow-hidden border border-emerald-700">
+                            <div id="horse-1" class="absolute top-1 left-0 text-xl transition-all duration-100">🐎</div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-bold w-16 text-sky-300">#2 Xanh (x4)</span>
+                        <div class="flex-1 bg-emerald-950/80 h-8 rounded-full relative overflow-hidden border border-emerald-700">
+                            <div id="horse-2" class="absolute top-1 left-0 text-xl transition-all duration-100">🐎</div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-bold w-16 text-emerald-300">#3 Lá (x4)</span>
+                        <div class="flex-1 bg-emerald-950/80 h-8 rounded-full relative overflow-hidden border border-emerald-700">
+                            <div id="horse-3" class="absolute top-1 left-0 text-xl transition-all duration-100">🐎</div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-bold w-16 text-amber-300">#4 Vàng (x4)</span>
+                        <div class="flex-1 bg-emerald-950/80 h-8 rounded-full relative overflow-hidden border border-emerald-700">
+                            <div id="horse-4" class="absolute top-1 left-0 text-xl transition-all duration-100">🐎</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
+                <button onclick="selectHorseBet(1)" id="bet-horse-1" class="p-2 rounded-xl bg-slate-800 border-2 border-rose-500/50 hover:bg-rose-950 text-center">
+                    <div class="text-xs font-bold text-rose-400">#1 Ngựa Đỏ</div>
+                    <div class="text-[10px] text-slate-400">Tỉ lệ x4</div>
+                </button>
+                <button onclick="selectHorseBet(2)" id="bet-horse-2" class="p-2 rounded-xl bg-slate-800 border-2 border-sky-500/50 hover:bg-sky-950 text-center">
+                    <div class="text-xs font-bold text-sky-400">#2 Ngựa Xanh</div>
+                    <div class="text-[10px] text-slate-400">Tỉ lệ x4</div>
+                </button>
+                <button onclick="selectHorseBet(3)" id="bet-horse-3" class="p-2 rounded-xl bg-slate-800 border-2 border-emerald-500/50 hover:bg-emerald-950 text-center">
+                    <div class="text-xs font-bold text-emerald-400">#3 Ngựa Lá</div>
+                    <div class="text-[10px] text-slate-400">Tỉ lệ x4</div>
+                </button>
+                <button onclick="selectHorseBet(4)" id="bet-horse-4" class="p-2 rounded-xl bg-slate-800 border-2 border-amber-500/50 hover:bg-amber-950 text-center">
+                    <div class="text-xs font-bold text-amber-400">#4 Ngựa Vàng</div>
+                    <div class="text-[10px] text-slate-400">Tỉ lệ x4</div>
+                </button>
+            </div>
+            <div class="flex flex-col gap-2">
+                <div class="flex items-center gap-2">
+                    <button onclick="adjustHorseBet(-500)" class="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs font-bold">-500</button>
+                    <button onclick="adjustHorseBet(-100)" class="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs font-bold">-100</button>
+                    <div class="flex-1 text-center font-bold text-amber-400">
+                        Cược: <input type="number" id="horse-bet-amount" value="500" min="100" step="100" class="w-24 bg-slate-800 border border-slate-600 text-center rounded-lg py-1 text-white text-sm font-bold">
+                    </div>
+                    <button onclick="adjustHorseBet(100)" class="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs font-bold">+100</button>
+                    <button onclick="adjustHorseBet(500)" class="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs font-bold">+500</button>
+                </div>
+                <button onclick="startHorseRace()" id="btn-start-race" class="mt-2 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 text-slate-900 font-black rounded-xl shadow-lg transition">
+                    🏁 BẮT ĐẦU ĐUA
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- BAU CUA MODAL -->
+    <div id="modal-bau-cua" class="fixed inset-0 bg-black/75 backdrop-blur-md z-50 hidden flex items-center justify-center p-3 sm:p-4">
+        <div class="glass-dark text-white w-full max-w-lg rounded-3xl p-4 sm:p-5 shadow-2xl flex flex-col">
+            <div class="flex justify-between items-center mb-3">
+                <h3 class="text-lg sm:text-xl font-black text-amber-400 flex items-center gap-2">🎲 Bầu Cua Tôm Cá</h3>
+                <button onclick="closeModal('modal-bau-cua')" class="w-8 h-8 rounded-full bg-slate-700 text-slate-200 font-bold hover:bg-slate-600">✕</button>
+            </div>
+
+            <div id="baucua-result" class="hidden mb-3 p-3 rounded-2xl text-center font-black border shadow-lg text-sm sm:text-base"></div>
+
+            <div class="bg-amber-950/60 rounded-2xl p-4 border border-amber-600/40 text-center mb-4">
+                <div id="dice-container" class="flex justify-center gap-4 text-3xl sm:text-4xl py-2">
+                    <div class="w-12 h-12 sm:w-14 sm:h-14 bg-amber-100 rounded-2xl flex items-center justify-center shadow text-2xl sm:text-3xl">🪷</div>
+                    <div class="w-12 h-12 sm:w-14 sm:h-14 bg-amber-100 rounded-2xl flex items-center justify-center shadow text-2xl sm:text-3xl">🦀</div>
+                    <div class="w-12 h-12 sm:w-14 sm:h-14 bg-amber-100 rounded-2xl flex items-center justify-center shadow text-2xl sm:text-3xl">🐟</div>
+                </div>
+            </div>
+            <div class="grid grid-cols-3 gap-2 mb-4">
+                <button onclick="addBauCuaBet('bau')" class="bg-slate-800 border border-slate-600 hover:border-amber-400 p-2 rounded-xl text-center relative">
+                    <span class="text-2xl">🪷</span><div class="text-xs font-bold text-slate-200">Bầu</div>
+                    <div id="bet-val-bau" class="text-[10px] text-amber-400 font-bold">0đ</div>
+                </button>
+                <button onclick="addBauCuaBet('cua')" class="bg-slate-800 border border-slate-600 hover:border-amber-400 p-2 rounded-xl text-center relative">
+                    <span class="text-2xl">🦀</span><div class="text-xs font-bold text-slate-200">Cua</div>
+                    <div id="bet-val-cua" class="text-[10px] text-amber-400 font-bold">0đ</div>
+                </button>
+                <button onclick="addBauCuaBet('tom')" class="bg-slate-800 border border-slate-600 hover:border-amber-400 p-2 rounded-xl text-center relative">
+                    <span class="text-2xl">🦐</span><div class="text-xs font-bold text-slate-200">Tôm</div>
+                    <div id="bet-val-tom" class="text-[10px] text-amber-400 font-bold">0đ</div>
+                </button>
+                <button onclick="addBauCuaBet('ca')" class="bg-slate-800 border border-slate-600 hover:border-amber-400 p-2 rounded-xl text-center relative">
+                    <span class="text-2xl">🐟</span><div class="text-xs font-bold text-slate-200">Cá</div>
+                    <div id="bet-val-ca" class="text-[10px] text-amber-400 font-bold">0đ</div>
+                </button>
+                <button onclick="addBauCuaBet('ga')" class="bg-slate-800 border border-slate-600 hover:border-amber-400 p-2 rounded-xl text-center relative">
+                    <span class="text-2xl">🐓</span><div class="text-xs font-bold text-slate-200">Gà</div>
+                    <div id="bet-val-ga" class="text-[10px] text-amber-400 font-bold">0đ</div>
+                </button>
+                <button onclick="addBauCuaBet('nai')" class="bg-slate-800 border border-slate-600 hover:border-amber-400 p-2 rounded-xl text-center relative">
+                    <span class="text-2xl">🦌</span><div class="text-xs font-bold text-slate-200">Nai</div>
+                    <div id="bet-val-nai" class="text-[10px] text-amber-400 font-bold">0đ</div>
+                </button>
+            </div>
+            <div class="flex gap-2 items-center">
+                <button onclick="clearBauCuaBets()" class="px-3 py-2 bg-slate-700 text-slate-200 text-xs font-bold rounded-xl hover:bg-slate-600">Đặt lại</button>
+                <button onclick="rollBauCua()" id="btn-roll-baucua" class="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-900 font-black rounded-xl shadow-lg">🎲 XÓC ĐĨA</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JS MODULES INCLUSION -->
+    <script src="js/config/constants.js"></script>
+    <script src="js/config/database.js"></script>
+    <script src="js/state/gameState.js"></script>
+    <script src="js/ui/toast.js"></script>
+    <script src="js/ui/uiManager.js"></script>
+    <script src="js/ui/modalManager.js"></script>
+    <script src="js/ui/floatingHud.js"></script>
+    <script src="js/ui/shopUI.js"></script>
+    <script src="js/ui/inventoryUI.js"></script>
+    <script src="js/ui/kitchenUI.js"></script>
+    <script src="js/ui/marketUI.js"></script>
+    <script src="js/ui/questsUI.js"></script>
+    <script src="js/minigames/horseRace.js"></script>
+    <script src="js/minigames/bauCua.js"></script>
+
+    <script src="js/engine/scene.js"></script>
+    <script src="js/engine/environment.js"></script>
+    <script src="js/engine/weather.js"></script>
+    <script src="js/models/player.js"></script>
+    <script src="js/models/plots.js"></script>
+    <script src="js/models/orchard.js"></script>
+    <script src="js/models/animals.js"></script>
+    <script src="js/models/pond.js"></script>
+    <script src="js/models/kitchen3d.js"></script>
+    <script src="js/engine/controls.js"></script>
+
+    <script src="js/main.js"></script>
+</body>
+</html>
