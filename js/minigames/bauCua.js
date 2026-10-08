@@ -7,8 +7,10 @@ function openBauCuaModal() {
 
 // Đặt cược vào các cửa (mỗi lần click +100🪙)
 function addBauCuaBet(type) {
+    if (!bauCuaBets[type] && bauCuaBets[type] !== 0) return;
+
     const betStep = 100;
-    if (gameState.gold < betStep) {
+    if ((gameState.gold || 0) < betStep) {
         showToast("Thiếu Vàng! 🪙", "Bạn cần ít nhất 100 Vàng để cược!", "❌");
         return;
     }
@@ -22,12 +24,18 @@ function addBauCuaBet(type) {
 
 // Đặt lại các cược (Hoàn trả tiền về ví)
 function clearBauCuaBets() {
+    let totalRefund = 0;
     Object.keys(bauCuaBets).forEach(k => {
-        gameState.gold += bauCuaBets[k];
+        totalRefund += bauCuaBets[k];
         bauCuaBets[k] = 0;
         const betEl = document.getElementById('bet-val-' + k);
         if (betEl) betEl.innerText = '0đ';
     });
+
+    if (totalRefund > 0) {
+        gameState.gold += totalRefund;
+    }
+
     updateUI();
 }
 
@@ -42,13 +50,18 @@ function rollBauCua() {
     const btn = document.getElementById('btn-roll-baucua');
     if (btn) btn.disabled = true;
 
+    const resBanner = document.getElementById('baucua-result');
+    if (resBanner) {
+        resBanner.classList.add('hidden');
+        resBanner.innerHTML = '';
+    }
+
     const icons = ['🪷', '🦀', '🦐', '🐟', '🐓', '🦌'];
     const keys = ['bau', 'cua', 'tom', 'ca', 'ga', 'nai'];
 
     let rolls = 0;
     const diceContainer = document.getElementById('dice-container');
 
-    // Tạo kết quả 3 xúc xắc hoàn toàn ngẫu nhiên và độc lập bằng Crypto/Random chuẩn
     const finalIndices = [
         Math.floor(Math.random() * 6),
         Math.floor(Math.random() * 6),
@@ -56,7 +69,6 @@ function rollBauCua() {
     ];
 
     const anim = setInterval(() => {
-        // Hiệu ứng cuộn xúc xắc ngẫu nhiên cho đẹp mắt
         const r1 = Math.floor(Math.random() * 6);
         const r2 = Math.floor(Math.random() * 6);
         const r3 = Math.floor(Math.random() * 6);
@@ -71,7 +83,6 @@ function rollBauCua() {
         if (rolls > 15) {
             clearInterval(anim);
 
-            // Hiển thị kết quả chuẩn đã quay từ trước
             if (diceContainer && diceContainer.children.length >= 3) {
                 diceContainer.children[0].innerText = icons[finalIndices[0]];
                 diceContainer.children[1].innerText = icons[finalIndices[1]];
@@ -79,31 +90,26 @@ function rollBauCua() {
             }
 
             const results = [keys[finalIndices[0]], keys[finalIndices[1]], keys[finalIndices[2]]];
-            let totalReturn = 0; // Tổng tiền trả lại cho người chơi
+            let totalReturn = 0;
 
-            // TÍNH TOÁN TRẢ THƯỞNG CHUẨN LUẬT BẦU CUA
             Object.keys(bauCuaBets).forEach(k => {
                 const betAmount = bauCuaBets[k];
                 if (betAmount > 0) {
                     const matchCount = results.filter(r => r === k).length;
                     if (matchCount > 0) {
-                        // Trả lại tiền cược (vốn) + tiền thưởng (vốn * matchCount)
                         totalReturn += betAmount + (betAmount * matchCount);
                     }
-                    // Reset tiền cược sau khi tính xong
                     bauCuaBets[k] = 0;
                     const betEl = document.getElementById('bet-val-' + k);
                     if (betEl) betEl.innerText = '0đ';
                 }
             });
 
-            // Cộng tiền thưởng/hoàn vốn vào kho vàng
             gameState.gold += totalReturn;
 
-            const resBanner = document.getElementById('baucua-result');
             if (resBanner) {
                 resBanner.classList.remove('hidden');
-                const netProfit = totalReturn - totalBet; // Lợi nhuận ròng
+                const netProfit = totalReturn - totalBet;
 
                 if (netProfit > 0) {
                     resBanner.className = 'mb-3 p-3 rounded-2xl text-center font-black border shadow-lg text-sm sm:text-base bg-emerald-900 border-emerald-500 text-emerald-200';
