@@ -18,10 +18,12 @@ let gameState = {
         medicine: 2, buy_chicken: 2, buy_cow: 1, buy_pig: 1, fry_goldfish: 2, egg: 2, milk: 1, pork: 0, worm: 2
     },
     // Mở khóa sẵn các công thức cơ bản + công thức làm thức ăn gia súc
+    
     unlockedRecipes: [
-        'craft_feed_chicken', 'craft_feed_cow', 'craft_feed_pig',
+        'craft_feed_chicken', 'craft_feed_cow', 'craft_feed_pig', 'craft_medicine',
         'rice_bowl', 'grilled_corn', 'fried_egg', 'apple_juice', 'pork_stew'
     ],
+
     unlockedPlots: Array(CONFIG.TOTAL_PLOTS).fill(false),
     plots: Array(CONFIG.TOTAL_PLOTS).fill(null).map(() => ({
         cropId: null, plantedAt: 0, watered: false, reducedSecs: 0, hasPest: false, pestAppearedAt: 0, pestImmune: false, isDead: false
