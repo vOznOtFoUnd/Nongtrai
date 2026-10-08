@@ -69,6 +69,8 @@ function updateOrchardVisual(idx) {
 // Click vào Cây ăn quả
 function handleOrchardClick(idx) {
     const tree = gameState.orchardPlots[idx];
+    const now = Date.now();
+
     if (!tree.unlocked) {
         const cost = 800;
         if (confirm(`Bạn có muốn mở khóa vị trí trồng cây ăn quả số ${idx + 1} với giá ${cost} 🪙?`)) {
@@ -88,17 +90,46 @@ function handleOrchardClick(idx) {
         openSaplingModal(idx);
     } else {
         const treeInfo = TREES_DB[tree.treeType];
-        const elapsed = (Date.now() - tree.plantedAt) / 1000;
-        if (elapsed >= treeInfo.harvestTime) {
+        
+        // Cấu hình: 15 phút đầu lớn (900s), sau đó mỗi 8 phút (480s) cho trái 1 lần
+        const growTime = 900; 
+        const cycleTime = 480;
+
+        const ageSecs = (now - tree.plantedAt) / 1000;
+        if (ageSecs < growTime) {
+            const remSecs = Math.ceil(growTime - ageSecs);
+            showToast("Cây Đang Lớn 🌳", `Cây cần thêm ${formatTime(remSecs)} để trưởng thành!`, "⏳");
+            return;
+        }
+
+        const lastHarvest = tree.lastHarvestAt || (tree.plantedAt + growTime * 1000);
+        const elapsed = (now - lastHarvest) / 1000;
+
+        if (elapsed >= cycleTime) {
             if (checkAndDeductStamina(2)) {
+                tree.yieldCount = (tree.yieldCount || 0) + 1;
+                tree.lastHarvestAt = now;
+
                 gameState.inventory[tree.treeType] = (gameState.inventory[tree.treeType] || 0) + 3;
                 addExp(treeInfo.exp);
-                tree.plantedAt = Date.now();
+
+                // Sau 10 lần thu hoạch -> Cây già cỗi, chặt cây nhận Gỗ
+                if (tree.yieldCount >= 10) {
+                    tree.treeType = null;
+                    tree.yieldCount = 0;
+                    tree.lastHarvestAt = 0;
+                    gameState.inventory.wood = (gameState.inventory.wood || 0) + 5;
+                    showToast("Cây Già Cỗi! 🪵", `Đã thu hoạch lần cuối và đốn cây (+5 Gỗ Cây)!`, "🪵", 4000);
+                } else {
+                    showToast("Thu Hoạch Trái Cây! 🧺", `Thu được 3 Quả ${treeInfo.name} (${tree.yieldCount}/10 lần)!`, "🍎");
+                }
+
                 updateOrchardVisual(idx);
-                showToast("Thu Hoạch Quả! 🧺", `Thu hoạch được 3 Quả ${treeInfo.name}!`, "🍎");
+                saveGame();
             }
         } else {
-            showToast("Cây Đang Ra Quả 🍊", "Hãy chờ trái cây chín nhé!", "⏳");
+            const remSecs = Math.ceil(cycleTime - elapsed);
+            showToast("Cây Đang Ra Trái 🍊", `Lần thu hoạch tiếp theo sau: ${formatTime(remSecs)}!`, "⏳");
         }
     }
 }
