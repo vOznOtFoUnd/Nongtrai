@@ -88,7 +88,7 @@ const WEATHER_TYPES = ['sunny', 'rainy', 'cloudy', 'snowy'];
 const WEATHER_ICONS = { sunny: '☀️', rainy: '🌧️', cloudy: '☁️', snowy: '❄️' };
 const WEATHER_NAMES = { sunny: 'Nắng đẹp', rainy: 'Mưa rào', cloudy: 'Nhiều mây', snowy: 'Tuyết rơi' };
 
-// Hàm tiện ích tra cứu thông tin vật phẩm
+// Bổ sung vào getItemInfo các vật phẩm xuất chuồng / chặt cây
 function getItemInfo(key) {
     if (CROPS_DB[key]) return CROPS_DB[key];
     if (TREES_DB[key]) return TREES_DB[key];
@@ -106,13 +106,16 @@ function getItemInfo(key) {
     }
     
     const specialMap = {
-        buy_chicken: { name: 'Gà Con Giống', icon: '🐥', cost: 150 },
-        buy_cow: { name: 'Bò Giống', icon: '🐮', cost: 500 },
-        buy_pig: { name: 'Heo Giống', icon: '🐷', cost: 300 },
-        egg: { name: 'Trứng Gà', icon: '🥚', sellPrice: 50, exp: 15 },
-        milk: { name: 'Sữa Bò Tươi', icon: '🥛', sellPrice: 120, exp: 25 },
-        pork: { name: 'Thịt Heo Sạch', icon: '🥩', sellPrice: 150, exp: 30 },
-        worm: { name: 'Sâu Đất', icon: '🐛', sellPrice: 10, exp: 5 }
+        buy_chicken: { name: 'Gà Con Giống', icon: '🐥', cost: 200 },
+        buy_cow: { name: 'Bò Giống', icon: '🐮', cost: 800 },
+        buy_pig: { name: 'Heo Giống', icon: '🐷', cost: 500 },
+        egg: { name: 'Trứng Gà', icon: '🥚', sellPrice: 120, exp: 25 },
+        milk: { name: 'Sữa Bò Tươi', icon: '🥛', sellPrice: 350, exp: 60 },
+        pork: { name: 'Thịt Heo Sạch', icon: '🥩', sellPrice: 650, exp: 120 },
+        chicken_meat: { name: 'Thịt Gà Nguyên Con', icon: '🍗', sellPrice: 850, exp: 150 },
+        beef_meat: { name: 'Thịt Bò Thượng Hạng', icon: '🥩', sellPrice: 1800, exp: 300 },
+        wood: { name: 'Gỗ Cây', icon: '🪵', sellPrice: 150, exp: 20 },
+        worm: { name: 'Sâu Đất', icon: '🐛', sellPrice: 15, exp: 5 }
     };
     if (specialMap[key]) return specialMap[key];
 
