@@ -8,6 +8,8 @@ function openModal(id) {
     else if (id === 'modal-kitchen' && typeof renderKitchenStoves === 'function') renderKitchenStoves();
     else if (id === 'modal-market' && typeof renderMarketOrders === 'function') renderMarketOrders();
     else if (id === 'modal-quests' && typeof renderQuests === 'function') renderQuests();
+    else if (id === 'modal-bau-cua' && typeof renderBauCuaState === 'function') renderBauCuaState();
+    else if (id === 'modal-horse-race' && typeof renderHorseRaceState === 'function') renderHorseRaceState();
 }
 
 // Tắt cửa sổ Popup Modal
