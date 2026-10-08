@@ -470,7 +470,7 @@ function openAnimalPenModal(penType) {
     openModal('modal-animal-pen');
 }
 
-// Thực thi Hành động trong Chuồng
+// Thu hoạch sản phẩm hoặc Xuất chuồng gia súc
 function executePenAction(action) {
     if (!currentPenType) return;
     let arrayName = currentPenType === 'chicken' ? 'chickens' : (currentPenType === 'cow' ? 'cows' : 'pigs');
@@ -527,58 +527,76 @@ function executePenAction(action) {
                 hungry: false,
                 sick: false,
                 lastSickDay: 0,
-                producedAt: Date.now(),
+                producedAt: Date.now(), // Thời điểm tính chu kỳ
                 x: posX,
                 z: posZ
             });
             updateAnimalPen3DMeshes(currentPenType);
-            showToast("Thêm Vật Nuôi! 🐣", "Đã thả vật nuôi mới vào chuồng!", "🎉");
+            showToast("Thả Con Giống! 🐣", "Đã thả con giống mới vào chuồng!", "🎉");
             openAnimalPenModal(currentPenType);
         }
     } else if (action === 'harvest') {
         const now = Date.now();
-        const interval = ANIMAL_PROD_INTERVALS[currentPenType];
-        
-        const readyAnimals = items.filter(a => !a.sick && !a.hungry && ((now - a.producedAt) / 1000 >= interval));
 
-        if (readyAnimals.length > 0) {
+        // Cấu hình thời gian Grow (Lớn) & Cycle (Chu kỳ đẻ)
+        const configMap = {
+            chicken: { growTime: 300, cycleTime: 180, prodKey: 'egg', meatKey: 'chicken_meat', name: 'Trứng Gà', meatName: 'Thịt Gà' },
+            cow: { growTime: 600, cycleTime: 360, prodKey: 'milk', meatKey: 'beef_meat', name: 'Sữa Bò', meatName: 'Thịt Bò' },
+            pig: { growTime: 900, cycleTime: 480, prodKey: 'pork', meatKey: 'pork', name: 'Thịt Heo', meatName: 'Thịt Heo Tươi' }
+        };
+
+        const cfg = configMap[currentPenType];
+        let harvestedProdCount = 0;
+        let retiredCount = 0;
+
+        items.forEach(a => {
+            if (a.sick || a.hungry) return;
+
+            const ageSecs = (now - a.bornAt) / 1000;
+            if (ageSecs < cfg.growTime) return; // Chưa đủ thời gian lớn
+
+            const lastTime = a.producedAt || (a.bornAt + cfg.growTime * 1000);
+            const elapsed = (now - lastTime) / 1000;
+
+            if (elapsed >= cfg.cycleTime && (a.yieldCount || 0) < 10) {
+                a.yieldCount = (a.yieldCount || 0) + 1;
+                a.producedAt = now;
+                harvestedProdCount++;
+            }
+        });
+
+        if (harvestedProdCount > 0) {
             if (checkAndDeductStamina(2)) {
-                const count = readyAnimals.length;
-                let retiredCount = 0;
+                gameState.inventory[cfg.prodKey] = (gameState.inventory[cfg.prodKey] || 0) + harvestedProdCount;
+                addExp(harvestedProdCount * 20);
 
-                readyAnimals.forEach(a => {
-                    a.yieldCount = (a.yieldCount || 0) + 1;
-                    a.producedAt = now;
-                    if (a.yieldCount >= 10) {
+                // Lọc những con đã đẻ đủ 10 lần -> Xuất chuồng nhận thịt
+                const remaining = [];
+                items.forEach(a => {
+                    if ((a.yieldCount || 0) >= 10) {
                         retiredCount++;
+                        gameState.inventory[cfg.meatKey] = (gameState.inventory[cfg.meatKey] || 0) + 1;
+                    } else {
+                        remaining.push(a);
                     }
                 });
 
-                let updatedList = items.filter(a => (a.yieldCount || 0) < 10);
-
-                if (currentPenType === 'chicken') gameState.chickens = updatedList;
-                else if (currentPenType === 'cow') gameState.cows = updatedList;
-                else if (currentPenType === 'pig') gameState.pigs = updatedList;
-
-                const prodKey = currentPenType === 'chicken' ? 'egg' : (currentPenType === 'cow' ? 'milk' : 'pork');
-                const prodName = currentPenType === 'chicken' ? 'Trứng Gà' : (currentPenType === 'cow' ? 'Sữa Bò' : 'Thịt Heo');
-                
-                gameState.inventory[prodKey] = (gameState.inventory[prodKey] || 0) + count;
-                addExp(count * 15);
-                trackQuestProgress('collect_animal', prodKey, count);
+                if (currentPenType === 'chicken') gameState.chickens = remaining;
+                else if (currentPenType === 'cow') gameState.cows = remaining;
+                else if (currentPenType === 'pig') gameState.pigs = remaining;
 
                 updateAnimalPen3DMeshes(currentPenType);
 
                 if (retiredCount > 0) {
-                    showToast("Thu Hoạch & Xuất Chuồng! 🧺", `Thu được ${count} ${prodName}. Có ${retiredCount} vật nuôi đã đủ 10 lần thu hoạch và xuất chuồng!`, "🎉", 4000);
+                    showToast("Thu Hoạch & Xuất Chuồng! 🧺", `Thu được ${harvestedProdCount} ${cfg.name}. Có ${retiredCount} con đẻ đủ 10 lần đã xuất chuồng (+${retiredCount} ${cfg.meatName})!`, "🎉", 4000);
                 } else {
-                    showToast("Thu Hoạch Sản Phẩm! 🧺", `Thu được ${count} ${prodName}!`, "✨");
+                    showToast("Thu Hoạch Sản Phẩm! 🧺", `Thu được ${harvestedProdCount} ${cfg.name}!`, "✨");
                 }
 
                 openAnimalPenModal(currentPenType);
             }
         } else {
-            showToast("Chưa Có Sản Phẩm ⏳", "Vật nuôi chưa sẵn sàng cho sản phẩm mới!", "ℹ️");
+            showToast("Chưa Có Sản Phẩm ⏳", "Vật nuôi đang lớn hoặc chưa tới chu kỳ thu hoạch tiếp theo!", "ℹ️");
         }
     }
 }
