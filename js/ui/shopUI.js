@@ -18,7 +18,6 @@ function adjustShopQty(delta) {
     shopBuyQty = Math.max(1, Math.min(50, shopBuyQty + delta));
     const qtyEl = document.getElementById('shop-buy-qty');
     if (qtyEl) qtyEl.innerText = shopBuyQty;
-    // Tự động re-render để cập nhật giá tiền tương ứng theo số lượng mới
     renderShopItems();
 }
 
@@ -27,9 +26,11 @@ function renderShopItems() {
     const container = document.getElementById('shop-items-container');
     if (!container) return;
 
+    const safeInventory = gameState.inventory || {};
     let html = '';
+
     if (activeShopTab === 'seeds') {
-        Object.keys(CROPS_DB).forEach(key => {
+        Object.keys(CROPS_DB || {}).forEach(key => {
             const c = CROPS_DB[key];
             const price = c.seedCost * shopBuyQty;
             html += `
@@ -46,7 +47,7 @@ function renderShopItems() {
             `;
         });
     } else if (activeShopTab === 'trees') {
-        Object.keys(TREES_DB).forEach(key => {
+        Object.keys(TREES_DB || {}).forEach(key => {
             const t = TREES_DB[key];
             const price = t.saplingCost * shopBuyQty;
             html += `
@@ -86,7 +87,7 @@ function renderShopItems() {
             `;
         });
     } else if (activeShopTab === 'supplies') {
-        Object.keys(SUPPLIES_DB).forEach(key => {
+        Object.keys(SUPPLIES_DB || {}).forEach(key => {
             const s = SUPPLIES_DB[key];
             const price = s.cost * shopBuyQty;
             html += `
@@ -103,9 +104,9 @@ function renderShopItems() {
             `;
         });
     } else if (activeShopTab === 'recipes') {
-        Object.keys(RECIPES_DB).forEach(key => {
+        Object.keys(RECIPES_DB || {}).forEach(key => {
             const r = RECIPES_DB[key];
-            const unlocked = gameState.unlockedRecipes.includes(key);
+            const unlocked = (gameState.unlockedRecipes || []).includes(key);
             html += `
                 <div class="bg-orange-50/80 rounded-2xl p-3 border border-orange-200 flex items-center justify-between">
                     <div class="flex items-center gap-3">
@@ -123,14 +124,12 @@ function renderShopItems() {
         });
     } else if (activeShopTab === 'sell') {
         let countItems = 0;
-        Object.keys(gameState.inventory).forEach(key => {
-            const qtyInStock = gameState.inventory[key];
+        Object.keys(safeInventory).forEach(key => {
+            const qtyInStock = safeInventory[key];
             if (qtyInStock > 0) {
                 countItems++;
                 const info = getItemInfo(key);
                 const unitPrice = info.sellPrice || 10;
-
-                // Tự tính số lượng bán thực tế (không vượt quá số lượng đang có trong túi)
                 const actualQtyToSell = Math.min(qtyInStock, shopBuyQty);
                 const totalPrice = unitPrice * actualQtyToSell;
                 const totalAllPrice = unitPrice * qtyInStock;
@@ -173,32 +172,37 @@ function buyItem(itemKey) {
     const unitPrice = info.cost || 20;
     const totalPrice = unitPrice * shopBuyQty;
 
-    if (gameState.gold >= totalPrice) {
-        gameState.gold -= totalPrice;
-        gameState.inventory[itemKey] = (gameState.inventory[itemKey] || 0) + shopBuyQty;
-        showToast("Mua Thành Công! 🛒", `Đã mua ${shopBuyQty} ${info.name}!`, "🪙");
-        updateUI();
-        renderShopItems();
-        saveGame();
-    } else {
+    if ((gameState.gold || 0) < totalPrice) {
         showToast("Không Đủ Vàng! 🪙", "Bạn cần thêm vàng để mua vật phẩm này!", "❌");
+        return;
     }
+
+    gameState.gold -= totalPrice;
+    gameState.inventory[itemKey] = (gameState.inventory[itemKey] || 0) + shopBuyQty;
+    showToast("Mua Thành Công! 🛒", `Đã mua ${shopBuyQty} ${info.name}!`, "🪙");
+    updateUI();
+    renderShopItems();
+    saveGame();
 }
 
 // Mua Công Thức Nấu Ăn
 function buyRecipe(recipeKey) {
     const r = RECIPES_DB[recipeKey];
     const cost = r.cost || 200;
-    if (gameState.gold >= cost) {
-        gameState.gold -= cost;
-        gameState.unlockedRecipes.push(recipeKey);
-        showToast("Đã Học Công Thức! 📜", `Bạn đã mở khóa món ăn "${r.name}"!`, "🎉");
-        updateUI();
-        renderShopItems();
-        saveGame();
-    } else {
+    if ((gameState.gold || 0) < cost) {
         showToast("Không Đủ Vàng! 🪙", "Bạn cần thêm vàng để mua công thức này!", "❌");
+        return;
     }
+
+    if (!Array.isArray(gameState.unlockedRecipes)) gameState.unlockedRecipes = [];
+    if (gameState.unlockedRecipes.includes(recipeKey)) return;
+
+    gameState.gold -= cost;
+    gameState.unlockedRecipes.push(recipeKey);
+    showToast("Đã Học Công Thức! 📜", `Bạn đã mở khóa món ăn "${r.name}"!`, "🎉");
+    updateUI();
+    renderShopItems();
+    saveGame();
 }
 
 // Bán Đồ trong Shop (Hỗ trợ truyền số lượng bán linh hoạt)
@@ -211,11 +215,53 @@ function sellItem(itemKey, qtyToSell) {
     const unitPrice = info.sellPrice || 10;
     const totalPrice = unitPrice * sellAmount;
 
-    gameState.gold += totalPrice;
+    gameState.gold = (gameState.gold || 0) + totalPrice;
     gameState.inventory[itemKey] = currentQty - sellAmount;
-    
+
     showToast("Bán Hàng Thành Công! 💰", `Đã bán ${sellAmount} ${info.name} (+${totalPrice.toLocaleString()} 🪙)!`, "🪙");
     updateUI();
     renderShopItems();
     saveGame();
+}
+
+// Render Túi đồ nông dân
+function renderInventory() {
+    const container = document.getElementById('inventory-container');
+    if (!container) return;
+
+    const safeInventory = gameState.inventory || {};
+    let html = '';
+    Object.keys(safeInventory).forEach(key => {
+        const qty = safeInventory[key];
+        if (qty > 0) {
+            const info = getItemInfo(key);
+            html += `
+                <div class="bg-white/80 rounded-2xl p-3 border border-slate-200 flex flex-col items-center text-center shadow-sm">
+                    <span class="text-3xl mb-1">${info.icon}</span>
+                    <div class="font-extrabold text-xs text-slate-800 mb-1">${info.name}</div>
+                    <div class="text-[10px] text-amber-600 font-bold mb-2">Số lượng: ${qty}</div>
+                    ${info.staminaRestore ? `<button onclick="eatFood('${key}')" class="w-full py-1 bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-[10px] rounded-xl shadow">Ăn (+${info.staminaRestore})</button>` : ''}
+                </div>
+            `;
+        }
+    });
+
+    container.innerHTML = html || `<div class="col-span-3 text-center text-slate-400 py-8 font-bold">Túi đồ trống rỗng!</div>`;
+}
+
+// Ăn Món Ăn để Hồi Thể Lực
+function eatFood(recipeKey) {
+    const qty = gameState.inventory[recipeKey] || 0;
+    if (qty <= 0) return;
+
+    const r = RECIPES_DB[recipeKey];
+    if (r && r.staminaRestore) {
+        gameState.inventory[recipeKey] -= 1;
+        gameState.staminaFloat = Math.min(gameState.maxStamina, gameState.staminaFloat + r.staminaRestore);
+        gameState.stamina = Math.floor(gameState.staminaFloat);
+        showToast("Thưởng Thức Món Ăn! 😋", `Hồi phục +${r.staminaRestore} Thể lực!`, "⚡");
+        updateUI();
+        renderInventory();
+        saveGame();
+    }
 }
