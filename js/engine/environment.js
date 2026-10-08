@@ -133,8 +133,9 @@ function buildEnvironmentDecorations() {
     }
 }
 
-// Xây dựng mặt đảo nông trại
+// Xây dựng mặt đảo nông trại & Dòng sông Fake bằng 2D Canvas Texture (Tối ưu performance)
 function buildFarmIslandBase() {
+    // 1. Mặt đất đảo chính (Cỏ xanh - 68x68)
     const island = new THREE.Mesh(
         new THREE.BoxGeometry(68, 2, 68),
         new THREE.MeshStandardMaterial({ color: 0x52b788, roughness: 0.8 })
@@ -143,4 +144,52 @@ function buildFarmIslandBase() {
     island.receiveShadow = true;
     island.userData = { type: 'ground' };
     scene.add(island);
+
+    // 2. Viền đất bãi bồi ven sông (72x72)
+    const beach = new THREE.Mesh(
+        new THREE.BoxGeometry(72, 1.8, 72),
+        new THREE.MeshStandardMaterial({ color: 0xc28544, roughness: 0.9 })
+    );
+    beach.position.y = -1.05;
+    beach.receiveShadow = true;
+    scene.add(beach);
+
+    // 3. TẠO AẢNH DÒNG SÔNG BẰNG CANVAS 2D (ĐÁNH LỪA THỊ GIÁC)
+    const riverCanvas = document.createElement('canvas');
+    riverCanvas.width = 512;
+    riverCanvas.height = 512;
+    const ctx = riverCanvas.getContext('2d');
+
+    // Tạo Radial Gradient mờ chuyển từ viền bờ ra lòng sông rồi tới núi
+    const gradient = ctx.createRadialGradient(256, 256, 120, 256, 256, 256);
+    gradient.addColorStop(0, '#0284c7'); // Xanh ngọc sông
+    gradient.addColorStop(0.4, '#0369a1'); // Xanh đậm lòng sông
+    gradient.addColorStop(0.8, '#0f172a'); // Tối dần về phía chân núi
+    gradient.addColorStop(1.0, '#1e293b');
+
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 512, 512);
+
+    // Vẽ thêm vài gợn sóng nước lăn tăn nhẹ dạng vòng tròn mờ
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+    ctx.lineWidth = 3;
+    for (let r = 140; r < 250; r += 20) {
+        ctx.beginPath();
+        ctx.arc(256, 256, r + Math.sin(r) * 5, 0, Math.PI * 2);
+        ctx.stroke();
+    }
+
+    const riverTexture = new THREE.CanvasTexture(riverCanvas);
+
+    // 4. Tấm Plane dán Ảnh Sông bao phủ toàn bộ khoảng không đến chân núi
+    const riverPlane = new THREE.Mesh(
+        new THREE.PlaneGeometry(120, 120),
+        new THREE.MeshBasicMaterial({
+            map: riverTexture,
+            side: THREE.DoubleSide
+        })
+    );
+    riverPlane.rotation.x = -Math.PI / 2;
+    riverPlane.position.y = -0.12; // Đặt ngay dưới bờ đất
+    scene.add(riverPlane);
 }
