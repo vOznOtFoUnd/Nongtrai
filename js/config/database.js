@@ -8,10 +8,10 @@ const CROPS_DB = {
 };
 
 const TREES_DB = {
-    apple: { id: 'apple', name: 'Cây Táo', saplingCost: 300, harvestTime: 240, sellPrice: 180, exp: 35, icon: '🍎' },
-    orange: { id: 'orange', name: 'Cây Cam', saplingCost: 500, harvestTime: 360, sellPrice: 300, exp: 55, icon: '🍊' },
-    peach: { id: 'peach', name: 'Cây Đào', saplingCost: 800, harvestTime: 480, sellPrice: 450, exp: 80, icon: '🍑' },
-    mango: { id: 'mango', name: 'Cây Xoài', saplingCost: 1200, harvestTime: 600, sellPrice: 650, exp: 110, icon: '🥭' }
+    apple: { id: 'apple', name: 'Quả Táo', saplingCost: 300, harvestTime: 240, sellPrice: 180, exp: 35, icon: '🍎' },
+    orange: { id: 'orange', name: 'Quả Cam', saplingCost: 500, harvestTime: 360, sellPrice: 300, exp: 55, icon: '🍊' },
+    peach: { id: 'peach', name: 'Quả Đào', saplingCost: 800, harvestTime: 480, sellPrice: 450, exp: 80, icon: '🍑' },
+    mango: { id: 'mango', name: 'Quả Xoài', saplingCost: 1200, harvestTime: 600, sellPrice: 650, exp: 110, icon: '🥭' }
 };
 
 const FISH_DB = {
@@ -29,16 +29,26 @@ const SUPPLIES_DB = {
 };
 
 const RECIPES_DB = {
+    // --- KHU VỰC CHẾ BIẾN THỨC ĂN NÔNG TRẠI (TỰ SẢN XUẤT) ---
+    craft_feed_chicken: { id: 'craft_feed_chicken', name: 'Trộn Cám Gà (x3)', cost: 0, cookTime: 15, sellPrice: 40, ingredients: { rice: 2 }, icon: '🌾', isFeed: true, outputItem: 'feed_chicken', outputQty: 3 },
+    craft_feed_cow: { id: 'craft_feed_cow', name: 'Ủ Cỏ Tươi Cho Bò (x3)', cost: 0, cookTime: 20, sellPrice: 60, ingredients: { corn: 2 }, icon: '🌿', isFeed: true, outputItem: 'feed_cow', outputQty: 3 },
+    craft_feed_pig: { id: 'craft_feed_pig', name: 'Chế Thức Ăn Heo (x3)', cost: 0, cookTime: 25, sellPrice: 70, ingredients: { pumpkin: 1, corn: 1 }, icon: '🥔', isFeed: true, outputItem: 'feed_pig', outputQty: 3 },
+
+    // --- CÁC MÓN ĂN CHẾ BIẾN TẬN DỤNG TẤT CẢ NÔNG SẢN & VẬT NUÔI ---
     rice_bowl: { id: 'rice_bowl', name: 'Cơm Trắng Dinh Dưỡng', cost: 0, cookTime: 20, sellPrice: 80, staminaRestore: 30, ingredients: { rice: 2 }, icon: '🍚' },
     grilled_corn: { id: 'grilled_corn', name: 'Bắp Nướng Mỡ Hành', cost: 0, cookTime: 25, sellPrice: 150, staminaRestore: 45, ingredients: { corn: 2 }, icon: '🌽' },
+    fried_egg: { id: 'fried_egg', name: 'Trứng Ốp La Cà Chua', cost: 0, cookTime: 20, sellPrice: 180, staminaRestore: 50, ingredients: { egg: 2, tomato: 1 }, icon: '🍳' },
     apple_juice: { id: 'apple_juice', name: 'Nước Táo Ép', cost: 0, cookTime: 30, sellPrice: 280, staminaRestore: 40, ingredients: { apple: 2 }, icon: '🧃' },
+    watermelon_juice: { id: 'watermelon_juice', name: 'Nước Dưa Hấu Ướp Lạnh', cost: 200, cookTime: 35, sellPrice: 580, staminaRestore: 75, ingredients: { watermelon: 1 }, icon: '🍉' },
     pork_stew: { id: 'pork_stew', name: 'Sườn Heo Hầm Cà Chua', cost: 0, cookTime: 50, sellPrice: 550, staminaRestore: 80, ingredients: { pork: 1, tomato: 2 }, icon: '🍲' },
+    grilled_fish: { id: 'grilled_fish', name: 'Cá Chép Nướng Giấy Bạc', cost: 250, cookTime: 40, sellPrice: 650, staminaRestore: 90, ingredients: { carp: 1, corn: 1 }, icon: '🐟' },
     orange_smoothie: { id: 'orange_smoothie', name: 'Sinh Tố Cam Sữa', cost: 300, cookTime: 45, sellPrice: 520, staminaRestore: 70, ingredients: { orange: 2, milk: 1 }, icon: '🥤' },
     peach_tea: { id: 'peach_tea', name: 'Trà Đào Sảng Khoái', cost: 450, cookTime: 60, sellPrice: 750, staminaRestore: 95, ingredients: { peach: 2 }, icon: '🍹' },
+    pumpkin_soup: { id: 'pumpkin_soup', name: 'Súp Bí Ngô Kem Sữa', cost: 350, cookTime: 50, sellPrice: 820, staminaRestore: 100, ingredients: { pumpkin: 1, milk: 1, egg: 1 }, icon: '🥣' },
+    strawberry_cake: { id: 'strawberry_cake', name: 'Bánh Kem Dâu Tây', cost: 500, cookTime: 65, sellPrice: 1350, staminaRestore: 150, ingredients: { strawberry: 2, milk: 1, egg: 2 }, icon: '🍰' },
     mango_smoothie: { id: 'mango_smoothie', name: 'Sinh Tố Xoài Nhiệt Đới', cost: 600, cookTime: 75, sellPrice: 1100, staminaRestore: 130, ingredients: { mango: 2, milk: 1 }, icon: '🥭' },
-    apple_steak: { id: 'apple_steak', name: 'Bít Tết Bò Sốt Táo', cost: 500, cookTime: 90, sellPrice: 1450, staminaRestore: 180, ingredients: { milk: 2, apple: 2, pork: 1 }, icon: '🥩' },
-    seafood_pumpkin: { id: 'seafood_pumpkin', name: 'Lẩu Bí Ngô Hải Sản', cost: 700, cookTime: 110, sellPrice: 1950, staminaRestore: 230, ingredients: { pumpkin: 1, carp: 1, tomato: 2 }, icon: '🍲' },
-    choco_strawberry: { id: 'choco_strawberry', name: 'Dâu Tây Bọc Socola', cost: 400, cookTime: 40, sellPrice: 980, staminaRestore: 110, ingredients: { strawberry: 3 }, icon: '🍓' }
+    apple_steak: { id: 'apple_steak', name: 'Bít Tết Sốt Táo', cost: 500, cookTime: 90, sellPrice: 1450, staminaRestore: 180, ingredients: { milk: 2, apple: 2, pork: 1 }, icon: '🥩' },
+    seafood_pumpkin: { id: 'seafood_pumpkin', name: 'Lẩu Bí Ngô Hải Sản', cost: 700, cookTime: 110, sellPrice: 1950, staminaRestore: 230, ingredients: { pumpkin: 1, carp: 1, goldfish: 1, tomato: 2 }, icon: '🍲' }
 };
 
 const WEATHER_TYPES = ['sunny', 'rainy', 'cloudy', 'snowy'];
