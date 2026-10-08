@@ -280,13 +280,12 @@ function updateFloatingHUD() {
         });
     }
 
-    // 7. HUD HEO (Lớn / Chờ thu hoạch thịt / Sẵn sàng)
+        // 7. HUD HEO (Hiển thị đếm giờ 15 phút lớn -> Sẵn sàng xuất chuồng)
     if (typeof pigMeshes !== 'undefined') {
         pigMeshes.forEach(item => {
             const p = item.data;
             const ageSecs = (now - p.bornAt) / 1000;
-            const growTime = 900;  // 15 phút lớn
-            const cycleTime = 480; // 8 phút cho thịt 1 lần
+            const growTime = 900;  // 15 phút lớn để xuất chuồng
 
             tempV.set(p.x, 1.2, p.z);
             const pos = getScreenCoords(tempV);
@@ -297,22 +296,15 @@ function updateFloatingHUD() {
                 if (p.sick) {
                     badgeStyle = 'bg-rose-500 text-white border-rose-600';
                     textHtml = '<span class="text-base">🐷 💊</span> Bệnh!';
-                } else if (p.hungry) {
+                } else if (p.hungry || (p.hunger !== undefined && p.hunger <= 40)) {
                     badgeStyle = 'bg-amber-500 text-white border-amber-600';
                     textHtml = '<span class="text-base">🐷 🥔</span> Đói!';
                 } else if (ageSecs < growTime) {
                     const remSecs = Math.ceil(growTime - ageSecs);
                     textHtml = `<span class="text-base">🐷</span> <span class="font-mono text-pink-600">${formatTime(remSecs)}</span>`;
                 } else {
-                    const lastTime = p.producedAt || (p.bornAt + growTime * 1000);
-                    const elapsed = (now - lastTime) / 1000;
-                    if (elapsed >= cycleTime && (p.yieldCount || 0) < 10) {
-                        badgeStyle = 'bg-emerald-500 text-white border-emerald-600 animate-bounce';
-                        textHtml = '<span class="text-base">🥩</span> Sẵn sàng!';
-                    } else {
-                        const remSecs = Math.ceil(cycleTime - elapsed);
-                        textHtml = `<span class="text-base">🥩</span> <span class="font-mono">${formatTime(remSecs)}</span>`;
-                    }
+                    badgeStyle = 'bg-emerald-500 text-white border-emerald-600 animate-bounce';
+                    textHtml = '<span class="text-base">🥩</span> Xuất Chuồng!';
                 }
 
                 htmlContent += `
