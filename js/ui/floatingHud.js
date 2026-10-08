@@ -79,7 +79,7 @@ function updateFloatingHUD() {
         });
     }
 
-    // 2. HUD CÂY ĂN QUẢ (Hiển thị Lớn / Chờ ra trái / Sẵn sàng)
+    // 2. HUD CÂY ĂN QUẢ (Lớn / Chờ ra trái / Sẵn sàng)
     if (typeof orchardPlotMeshes !== 'undefined') {
         gameState.orchardPlots.forEach((tree, i) => {
             if (!tree.unlocked || !tree.treeType) return;
@@ -102,11 +102,9 @@ function updateFloatingHUD() {
             let badgeStyle = 'bg-white/95 border-emerald-500 text-slate-800';
 
             if (ageSecs < growTime) {
-                // Đang giai đoạn lớn
                 const remSecs = Math.ceil(growTime - ageSecs);
                 badgeText = `🌱 ${formatTime(remSecs)}`;
             } else {
-                // Đã trưởng thành -> Tính chu kỳ thu hoạch
                 const lastH = tree.lastHarvestAt || (tree.plantedAt + growTime * 1000);
                 const elapsed = (now - lastH) / 1000;
                 if (elapsed >= cycleTime) {
@@ -126,7 +124,75 @@ function updateFloatingHUD() {
         });
     }
 
-    // 3. HUD GÀ (Hiển thị Lớn / Chờ đẻ / Sẵn sàng)
+    // 3. HUD BẾP NẤU ĂN 3D
+    if (typeof stoveMeshes !== 'undefined') {
+        stoveMeshes.forEach((group, i) => {
+            const stove = gameState.kitchenStoves[i];
+            if (!stove || !stove.unlocked || !stove.cooking) return;
+
+            group.getWorldPosition(tempV);
+            tempV.y += 1.6;
+            const pos = getScreenCoords(tempV);
+            if (!pos) return;
+
+            const recipe = RECIPES_DB[stove.recipeId];
+            if (!recipe) return;
+
+            const elapsed = (now - stove.startTime) / 1000;
+            const remSecs = Math.max(0, Math.ceil(stove.duration - elapsed));
+
+            let badgeStyle = 'bg-white/95 border-amber-500 text-slate-800';
+            let badgeText = `${recipe.icon} ${formatTime(remSecs)}`;
+
+            if (remSecs === 0) {
+                badgeStyle = 'bg-amber-500 text-white border-amber-600 animate-bounce';
+                badgeText = `${recipe.icon} Xong Rồi!`;
+            }
+
+            htmlContent += `
+                <div class="hud-badge ${badgeStyle} border px-2 py-1 rounded-xl shadow-md text-[11px] font-black flex items-center gap-1.5 absolute" style="left: ${pos.x}px; top: ${pos.y}px; transform: translate(-50%, -100%); pointer-events: none;">
+                    ${badgeText}
+                </div>
+            `;
+        });
+    }
+
+    // 4. HUD AO CÁ
+    if (gameState.fishPond && gameState.fishPond.fishes.length > 0) {
+        tempV.set(0, 1.2, 20);
+        const pos = getScreenCoords(tempV);
+        if (pos) {
+            let adultCount = 0;
+            let growingCount = 0;
+
+            gameState.fishPond.fishes.forEach(f => {
+                const fInfo = FISH_DB[f.type];
+                if (fInfo) {
+                    const elapsed = (now - f.plantedAt) / 1000;
+                    if (elapsed >= fInfo.growTime) adultCount++;
+                    else growingCount++;
+                }
+            });
+
+            let badgeText = '';
+            let badgeStyle = 'bg-white/95 border-sky-400 text-slate-800';
+
+            if (adultCount > 0) {
+                badgeStyle = 'bg-sky-500 text-white border-sky-600 animate-bounce';
+                badgeText = `🐟 ${adultCount} Cá Lớn!`;
+            } else {
+                badgeText = `🐟 ${growingCount} Cá Con`;
+            }
+
+            htmlContent += `
+                <div class="hud-badge ${badgeStyle} border px-2 py-1 rounded-xl shadow-md text-[11px] font-black flex items-center gap-1.5 absolute" style="left: ${pos.x}px; top: ${pos.y}px; transform: translate(-50%, -100%); pointer-events: none;">
+                    ${badgeText}
+                </div>
+            `;
+        }
+    }
+
+    // 5. HUD GÀ (Lớn / Chờ đẻ / Sẵn sàng)
     if (typeof chickenMeshes !== 'undefined') {
         chickenMeshes.forEach(item => {
             const c = item.data;
@@ -147,11 +213,9 @@ function updateFloatingHUD() {
                     badgeStyle = 'bg-amber-500 text-white border-amber-600';
                     textHtml = '<span class="text-base">🐥 🌾</span> Đói!';
                 } else if (ageSecs < growTime) {
-                    // Đang giai đoạn lớn
                     const remSecs = Math.ceil(growTime - ageSecs);
                     textHtml = `<span class="text-base">🐥</span> <span class="font-mono text-amber-600">${formatTime(remSecs)}</span>`;
                 } else {
-                    // Đã trưởng thành -> Tính chu kỳ đẻ
                     const lastTime = c.producedAt || (c.bornAt + growTime * 1000);
                     const elapsed = (now - lastTime) / 1000;
                     if (elapsed >= cycleTime && (c.yieldCount || 0) < 10) {
@@ -172,7 +236,7 @@ function updateFloatingHUD() {
         });
     }
 
-    // 4. HUD BÒ (Hiển thị Lớn / Chờ vắt sữa / Sẵn sàng)
+    // 6. HUD BÒ (Lớn / Chờ vắt sữa / Sẵn sàng)
     if (typeof cowMeshes !== 'undefined') {
         cowMeshes.forEach(item => {
             const c = item.data;
@@ -193,11 +257,9 @@ function updateFloatingHUD() {
                     badgeStyle = 'bg-amber-500 text-white border-amber-600';
                     textHtml = '<span class="text-base">🐮 🌿</span> Đói!';
                 } else if (ageSecs < growTime) {
-                    // Đang giai đoạn lớn
                     const remSecs = Math.ceil(growTime - ageSecs);
                     textHtml = `<span class="text-base">🐮</span> <span class="font-mono text-sky-600">${formatTime(remSecs)}</span>`;
                 } else {
-                    // Đã trưởng thành -> Tính chu kỳ vắt sữa
                     const lastTime = c.producedAt || (c.bornAt + growTime * 1000);
                     const elapsed = (now - lastTime) / 1000;
                     if (elapsed >= cycleTime && (c.yieldCount || 0) < 10) {
@@ -206,6 +268,50 @@ function updateFloatingHUD() {
                     } else {
                         const remSecs = Math.ceil(cycleTime - elapsed);
                         textHtml = `<span class="text-base">🥛</span> <span class="font-mono">${formatTime(remSecs)}</span>`;
+                    }
+                }
+
+                htmlContent += `
+                    <div class="hud-badge ${badgeStyle} border px-2 py-1 rounded-xl shadow-md text-[11px] font-black flex items-center gap-1.5 absolute" style="left: ${pos.x}px; top: ${pos.y}px; transform: translate(-50%, -100%); pointer-events: none;">
+                        ${textHtml}
+                    </div>
+                `;
+            }
+        });
+    }
+
+    // 7. HUD HEO (Lớn / Chờ thu hoạch thịt / Sẵn sàng)
+    if (typeof pigMeshes !== 'undefined') {
+        pigMeshes.forEach(item => {
+            const p = item.data;
+            const ageSecs = (now - p.bornAt) / 1000;
+            const growTime = 900;  // 15 phút lớn
+            const cycleTime = 480; // 8 phút cho thịt 1 lần
+
+            tempV.set(p.x, 1.2, p.z);
+            const pos = getScreenCoords(tempV);
+            if (pos) {
+                let badgeStyle = 'bg-white/95 border-pink-400 text-slate-800';
+                let textHtml = '';
+
+                if (p.sick) {
+                    badgeStyle = 'bg-rose-500 text-white border-rose-600';
+                    textHtml = '<span class="text-base">🐷 💊</span> Bệnh!';
+                } else if (p.hungry) {
+                    badgeStyle = 'bg-amber-500 text-white border-amber-600';
+                    textHtml = '<span class="text-base">🐷 🥔</span> Đói!';
+                } else if (ageSecs < growTime) {
+                    const remSecs = Math.ceil(growTime - ageSecs);
+                    textHtml = `<span class="text-base">🐷</span> <span class="font-mono text-pink-600">${formatTime(remSecs)}</span>`;
+                } else {
+                    const lastTime = p.producedAt || (p.bornAt + growTime * 1000);
+                    const elapsed = (now - lastTime) / 1000;
+                    if (elapsed >= cycleTime && (p.yieldCount || 0) < 10) {
+                        badgeStyle = 'bg-emerald-500 text-white border-emerald-600 animate-bounce';
+                        textHtml = '<span class="text-base">🥩</span> Sẵn sàng!';
+                    } else {
+                        const remSecs = Math.ceil(cycleTime - elapsed);
+                        textHtml = `<span class="text-base">🥩</span> <span class="font-mono">${formatTime(remSecs)}</span>`;
                     }
                 }
 
