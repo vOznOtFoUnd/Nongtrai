@@ -470,7 +470,7 @@ function openAnimalPenModal(penType) {
     openModal('modal-animal-pen');
 }
 
-// Thực thi Hành động trong Chuồng Gia Súc (Đã FIX cơ chế Thanh Năng Lượng Hunger)
+// Thực thi Hành động trong Chuồng Gia Súc (ĐÃ FIX CHUẨN: HEO XUẤT CHUỒNG 1 LẦN & ĐỒNG BỘ HUNGER)
 function executePenAction(action) {
     if (!currentPenType) return;
     let arrayName = currentPenType === 'chicken' ? 'chickens' : (currentPenType === 'cow' ? 'cows' : 'pigs');
@@ -479,7 +479,7 @@ function executePenAction(action) {
     if (action === 'feed') {
         const feedKey = 'feed_' + currentPenType;
         
-        // Lọc ra các con có điểm hunger < 80 (cần ăn)
+        // Lọc các con có điểm hunger < 80 (cần ăn)
         const hungryList = items.filter(a => (a.hunger === undefined ? 100 : a.hunger) < 80 || a.hungry);
         
         if (hungryList.length === 0) {
@@ -501,7 +501,7 @@ function executePenAction(action) {
             hungryList.forEach(a => {
                 a.hunger = 100;
                 a.hungry = false;
-                a.starvingStartAt = null; // Xóa đếm giờ nhịn đói
+                a.starvingStartAt = null;
             });
 
             showToast("Cho Ăn Thành Công! 🌾", `Đã dùng ${hungryList.length} ${getItemInfo(feedKey).name}. Tất cả đã no 100%!`, "✨");
@@ -548,7 +548,7 @@ function executePenAction(action) {
                 id: Date.now(),
                 bornAt: Date.now(),
                 yieldCount: 0,
-                hunger: 100, // Khởi tạo năng lượng đầy đủ cho con giống mới
+                hunger: 100,
                 hungry: false,
                 sick: false,
                 starvingStartAt: null,
@@ -569,63 +569,90 @@ function executePenAction(action) {
         const configMap = {
             chicken: { growTime: 300, cycleTime: 180, prodKey: 'egg', meatKey: 'chicken_meat', name: 'Trứng Gà', meatName: 'Thịt Gà' },
             cow: { growTime: 600, cycleTime: 360, prodKey: 'milk', meatKey: 'beef_meat', name: 'Sữa Bò', meatName: 'Thịt Bò' },
-            pig: { growTime: 900, cycleTime: 480, prodKey: 'pork', meatKey: 'pork', name: 'Thịt Heo', meatName: 'Thịt Heo Tươi' }
+            pig: { growTime: 900, cycleTime: 480, prodKey: 'pork', meatKey: 'pork', name: 'Thịt Heo Tươi', meatName: 'Thịt Heo Tươi' }
         };
 
         const cfg = configMap[currentPenType];
-        let harvestedProdCount = 0;
-        let retiredCount = 0;
 
-        items.forEach(a => {
-            // Đang bệnh hoặc đói kiệt sức (hunger <= 0) thì dừng sản xuất
-            if (a.sick || (a.hunger !== undefined && a.hunger <= 0)) return;
+        // 🟢 FIX RIÊNG LOGIC HEO: LỚN ĐỦ 15 PHÚT -> THU HOẠCH THỊT & XUẤT CHUỒNG LỜI LẠI 1 LẦN
+        if (currentPenType === 'pig') {
+            const readyPigs = items.filter(p => !p.sick && (p.hunger === undefined || p.hunger > 0) && ((now - p.bornAt) / 1000) >= cfg.growTime);
 
-            const ageSecs = (now - a.bornAt) / 1000;
-            if (ageSecs < cfg.growTime) return;
+            if (readyPigs.length > 0) {
+                if (checkAndDeductStamina(2)) {
+                    // Giữ lại những con heo chưa lớn hoặc đang bệnh/đói
+                    const remainingPigs = items.filter(p => p.sick || (p.hunger !== undefined && p.hunger <= 0) || ((now - p.bornAt) / 1000) < cfg.growTime);
+                    const pigYieldCount = readyPigs.length;
 
-            const lastTime = a.producedAt || (a.bornAt + cfg.growTime * 1000);
-            const elapsed = (now - lastTime) / 1000;
+                    gameState.inventory['pork'] = (gameState.inventory['pork'] || 0) + pigYieldCount;
+                    addExp(pigYieldCount * 30);
 
-            if (elapsed >= cfg.cycleTime && (a.yieldCount || 0) < 10) {
-                a.yieldCount = (a.yieldCount || 0) + 1;
-                a.producedAt = now;
-                harvestedProdCount++;
-            }
-        });
+                    gameState.pigs = remainingPigs;
+                    updateAnimalPen3DMeshes('pig');
 
-        if (harvestedProdCount > 0) {
-            if (checkAndDeductStamina(2)) {
-                gameState.inventory[cfg.prodKey] = (gameState.inventory[cfg.prodKey] || 0) + harvestedProdCount;
-                addExp(harvestedProdCount * 20);
-
-                const remaining = [];
-                items.forEach(a => {
-                    if ((a.yieldCount || 0) >= 10) {
-                        retiredCount++;
-                        gameState.inventory[cfg.meatKey] = (gameState.inventory[cfg.meatKey] || 0) + 1;
-                    } else {
-                        remaining.push(a);
-                    }
-                });
-
-                if (currentPenType === 'chicken') gameState.chickens = remaining;
-                else if (currentPenType === 'cow') gameState.cows = remaining;
-                else if (currentPenType === 'pig') gameState.pigs = remaining;
-
-                updateAnimalPen3DMeshes(currentPenType);
-
-                if (retiredCount > 0) {
-                    showToast("Thu Hoạch & Xuất Chuồng! 🧺", `Thu được ${harvestedProdCount} ${cfg.name}. Có ${retiredCount} con đẻ đủ 10 lần đã xuất chuồng!`, "🎉", 4000);
-                } else {
-                    showToast("Thu Hoạch Sản Phẩm! 🧺", `Thu được ${harvestedProdCount} ${cfg.name}!`, "✨");
+                    showToast("Xuất Chuồng Heo! 🥩", `Đã thu hoạch ${pigYieldCount} Thịt Heo Tươi và xuất chuồng thành công!`, "🎉", 4000);
+                    openAnimalPenModal('pig');
+                    updateUI();
+                    saveGame();
                 }
-
-                openAnimalPenModal(currentPenType);
-                updateUI();
-                saveGame();
+            } else {
+                showToast("Chưa Thể Xuất Chuồng ⏳", "Heo chưa đủ lớn (15 phút) hoặc đang bị đói/bệnh!", "ℹ️");
             }
-        } else {
-            showToast("Chưa Có Sản Phẩm ⏳", "Vật nuôi đang lớn, chưa tới giờ cho sản phẩm hoặc đang quá đói!", "ℹ️");
+        } 
+        // 🟡 LOGIC CHO GÀ VÀ BÒ: THU HOẠCH SẢN PHẨM NHIỀU LẦN (ĐỦ 10 LẦN MỚI XUẤT CHUỒNG)
+        else {
+            let harvestedProdCount = 0;
+            let retiredCount = 0;
+
+            items.forEach(a => {
+                if (a.sick || (a.hunger !== undefined && a.hunger <= 0)) return;
+
+                const ageSecs = (now - a.bornAt) / 1000;
+                if (ageSecs < cfg.growTime) return;
+
+                const lastTime = a.producedAt || (a.bornAt + cfg.growTime * 1000);
+                const elapsed = (now - lastTime) / 1000;
+
+                if (elapsed >= cfg.cycleTime && (a.yieldCount || 0) < 10) {
+                    a.yieldCount = (a.yieldCount || 0) + 1;
+                    a.producedAt = now;
+                    harvestedProdCount++;
+                }
+            });
+
+            if (harvestedProdCount > 0) {
+                if (checkAndDeductStamina(2)) {
+                    gameState.inventory[cfg.prodKey] = (gameState.inventory[cfg.prodKey] || 0) + harvestedProdCount;
+                    addExp(harvestedProdCount * 20);
+
+                    const remaining = [];
+                    items.forEach(a => {
+                        if ((a.yieldCount || 0) >= 10) {
+                            retiredCount++;
+                            gameState.inventory[cfg.meatKey] = (gameState.inventory[cfg.meatKey] || 0) + 1;
+                        } else {
+                            remaining.push(a);
+                        }
+                    });
+
+                    if (currentPenType === 'chicken') gameState.chickens = remaining;
+                    else if (currentPenType === 'cow') gameState.cows = remaining;
+
+                    updateAnimalPen3DMeshes(currentPenType);
+
+                    if (retiredCount > 0) {
+                        showToast("Thu Hoạch & Xuất Chuồng! 🧺", `Thu được ${harvestedProdCount} ${cfg.name}. Có ${retiredCount} con đã cho đủ 10 lần sản phẩm và xuất chuồng!`, "🎉", 4000);
+                    } else {
+                        showToast("Thu Hoạch Sản Phẩm! 🧺", `Thu được ${harvestedProdCount} ${cfg.name}!`, "✨");
+                    }
+
+                    openAnimalPenModal(currentPenType);
+                    updateUI();
+                    saveGame();
+                }
+            } else {
+                showToast("Chưa Có Sản Phẩm ⏳", "Vật nuôi đang lớn, chưa tới giờ cho sản phẩm hoặc đang quá đói!", "ℹ️");
+            }
         }
     }
 }
