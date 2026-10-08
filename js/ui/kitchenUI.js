@@ -1,4 +1,4 @@
-// Render Giao Diện 4 Bếp Nấu Ăn
+// Render Giao Diện 4 Bếp Nấu Ăn & Cối Chế Biến
 function renderKitchenStoves() {
     const tabsContainer = document.getElementById('kitchen-stoves-tabs');
     if (!tabsContainer) return;
@@ -23,7 +23,7 @@ function renderKitchenStoves() {
             <div class="flex items-center justify-between">
                 <div>
                     <div class="font-extrabold text-slate-800">Bếp ${curStove.id + 1} chưa mở khóa</div>
-                    <div class="text-[11px] text-slate-500">Yêu cầu Cấp ${curStove.levelReq} - Giá: ${curStove.cost} 🪙</div>
+                    <div class="text-[11px] text-slate-500">Yêu cầu Cấp ${curStove.levelReq} - Giá: ${curStove.cost.toLocaleString()} 🪙</div>
                 </div>
                 <button onclick="unlockStove(${curStove.id})" class="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl shadow">Mở Khoá</button>
             </div>
@@ -36,16 +36,16 @@ function renderKitchenStoves() {
         statusEl.innerHTML = `
             <div class="flex items-center justify-between">
                 <div>
-                    <div class="font-extrabold text-slate-800 flex items-center gap-1">${recipe.icon} Đang nấu ${recipe.name}...</div>
+                    <div class="font-extrabold text-slate-800 flex items-center gap-1">${recipe.icon} Đang chế biến ${recipe.name}...</div>
                     <div class="text-[11px] text-slate-500">Thời gian còn lại: <b>${formatTime(remSecs)}</b></div>
                 </div>
                 <button onclick="claimCookedFood(${curStove.id})" ${remSecs > 0 ? 'disabled' : ''} class="px-3 py-1.5 ${remSecs === 0 ? 'bg-amber-500 hover:bg-amber-600 text-white animate-bounce' : 'bg-slate-300 text-slate-500'} font-bold rounded-xl shadow">
-                    ${remSecs === 0 ? 'Nhận Món' : 'Đang Nấu'}
+                    ${remSecs === 0 ? 'Nhận Thành Phẩm' : 'Đang Chế Biến'}
                 </button>
             </div>
         `;
     } else {
-        statusEl.innerHTML = `<div class="text-slate-600 font-bold text-center">Bếp trống. Chọn công thức bên dưới để bắt đầu nấu!</div>`;
+        statusEl.innerHTML = `<div class="text-slate-600 font-bold text-center">Bếp trống. Chọn công thức hoặc loại thức ăn bên dưới để bắt đầu!</div>`;
     }
 
     const recipesContainer = document.getElementById('kitchen-recipes-container');
@@ -53,6 +53,8 @@ function renderKitchenStoves() {
 
     gameState.unlockedRecipes.forEach(rKey => {
         const r = RECIPES_DB[rKey];
+        if (!r) return;
+        
         let canCook = true;
         let reqText = [];
 
@@ -65,7 +67,7 @@ function renderKitchenStoves() {
         });
 
         recipesHtml += `
-            <div class="bg-white/90 rounded-2xl p-3 border border-amber-200 flex items-center justify-between shadow-sm">
+            <div class="${r.isFeed ? 'bg-amber-100/90 border-amber-300' : 'bg-white/90 border-amber-200'} rounded-2xl p-3 border flex items-center justify-between shadow-sm">
                 <div class="flex items-center gap-2.5">
                     <span class="text-3xl">${r.icon}</span>
                     <div>
@@ -73,8 +75,8 @@ function renderKitchenStoves() {
                         <div class="text-[10px] text-slate-500">${reqText.join(' | ')}</div>
                     </div>
                 </div>
-                <button onclick="cookRecipe('${rKey}')" ${(!curStove.unlocked || curStove.cooking || !canCook) ? 'disabled' : ''} class="px-3 py-1.5 ${canCook && curStove.unlocked && !curStove.cooking ? 'bg-amber-500 hover:bg-amber-600 text-white' : 'bg-slate-200 text-slate-400'} font-bold text-xs rounded-xl shadow">
-                    Nấu
+                <button onclick="cookRecipe('${rKey}')" ${(!curStove.unlocked || curStove.cooking || !canCook) ? 'disabled' : ''} class="px-3 py-1.5 ${canCook && curStove.unlocked && !curStove.cooking ? 'bg-amber-500 hover:bg-amber-600 text-white' : 'bg-slate-200 text-slate-400'} font-bold text-xs rounded-xl shadow whitespace-nowrap">
+                    Chế Biến
                 </button>
             </div>
         `;
@@ -110,7 +112,7 @@ function unlockStove(stoveIdx) {
     saveGame();
 }
 
-// Bắt Đầu Nấu Theo Công Thức
+// Bắt Đầu Nấu / Trộn Thức Ăn
 function cookRecipe(recipeKey) {
     const stove = gameState.kitchenStoves[gameState.selectedStoveIdx];
     if (!stove || !stove.unlocked || stove.cooking) return;
@@ -125,25 +127,34 @@ function cookRecipe(recipeKey) {
     stove.startTime = Date.now();
     stove.duration = r.cookTime;
 
-    showToast("Bắt Đầu Nấu! 🍳", `Đang chế biến món ${r.name}...`, "🔥");
+    showToast("Bắt Đầu Chế Biến! 🍳", `Đang thực hiện "${r.name}"...`, "🔥");
     renderKitchenStoves();
     saveGame();
 }
 
-// Nhận Món Ăn Đã Nấu Xong
+// Nhận Món Ăn / Thức Ăn Gia Súc Đã Nấu Xong
 function claimCookedFood(stoveIdx) {
     const stove = gameState.kitchenStoves[stoveIdx];
     if (!stove || !stove.cooking) return;
 
     const r = RECIPES_DB[stove.recipeId];
-    gameState.inventory[stove.recipeId] = (gameState.inventory[stove.recipeId] || 0) + 1;
-    addExp(25);
-    trackQuestProgress('cook_recipe', stove.recipeId);
+    
+    if (r.isFeed && r.outputItem) {
+        // Trường hợp chế tạo Thức ăn gia súc (được cộng nhiều món một lúc)
+        const addQty = r.outputQty || 1;
+        gameState.inventory[r.outputItem] = (gameState.inventory[r.outputItem] || 0) + addQty;
+        showToast("Chế Tạo Thành Công! 🌾", `Nhận được +${addQty} ${getItemInfo(r.outputItem).name}!`, "🎉");
+    } else {
+        // Trường hợp nấu món ăn bình thường
+        gameState.inventory[stove.recipeId] = (gameState.inventory[stove.recipeId] || 0) + 1;
+        trackQuestProgress('cook_recipe', stove.recipeId);
+        showToast("Món Ăn Hoàn Thành! 🍳", `Nhận được 1 ${r.name}!`, "🎉");
+    }
 
+    addExp(25);
     stove.cooking = false;
     stove.recipeId = null;
 
-    showToast("Món Ăn Hoàn Thành! 🍳", `Nhận được 1 ${r.name}!`, "🎉");
     renderKitchenStoves();
     saveGame();
 }
