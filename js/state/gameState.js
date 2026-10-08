@@ -56,21 +56,27 @@ let gameState = {
 // Mở khóa 6 ô đất đầu tiên mặc định
 for (let i = 0; i < 6; i++) gameState.unlockedPlots[i] = true;
 
-// Hàm lưu Game (Có lưu mốc thời gian thoát game)
+// 1. Hàm lưu Game (Ghi nhớ mốc thời gian thực lúc thoát)
 function saveGame() {
     try { 
-        gameState.lastSavedAt = Date.now(); 
+        gameState.lastSavedAt = Date.now(); // Lưu mốc timestamp hiện tại
         localStorage.setItem(CONFIG.SAVE_KEY, JSON.stringify(gameState)); 
     } catch(e) {}
 }
 
-// Hàm tải Game
+// 2. Hàm tải Game (Cập nhật đồng bộ thêm lastSavedAt)
 function loadGame() {
     try {
         const saved = localStorage.getItem(CONFIG.SAVE_KEY);
         if (saved) {
             const parsed = JSON.parse(saved);
             gameState = Object.assign({}, gameState, parsed);
+
+            // Bảo toàn cờ lastSavedAt nếu có trong dữ liệu lưu
+            if (parsed.lastSavedAt) {
+                gameState.lastSavedAt = parsed.lastSavedAt;
+            }
+
             if (!gameState.kitchenStoves || !Array.isArray(gameState.kitchenStoves)) {
                 gameState.kitchenStoves = [
                     { id: 0, levelReq: 1, cost: 0, unlocked: true, cooking: false, recipeId: null, quantity: 0, startTime: 0, duration: 0 },
