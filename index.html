@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Avatar Mini Farm 3D - Phiên Bản Hoàn Thiện Nâng Cấp</title>
+    <title>Nông Trại 3D - UPGRADE 10 (Audit & Architecture)</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Three.js CDN -->
@@ -23,24 +23,30 @@
     <!-- FLOATING HUD OVERLAY CONTAINER FOR CROPS, ANIMALS, FISH & TIMERS -->
     <div id="floating-hud-container" class="ui-layer"></div>
 
+    <!-- Nút đơn hàng luôn hiển thị, mở trực tiếp danh sách đơn. -->
+    <button onclick="openModal('modal-market')" id="market-orders-shortcut" aria-label="Xem đơn hàng" class="interactive-ui fixed left-3 bottom-28 sm:left-5 sm:bottom-5 z-40 rounded-2xl px-3 py-2.5 sm:px-4 sm:py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-xl border border-white/70 font-black text-xs sm:text-sm flex items-center gap-2 max-w-[44vw] sm:max-w-none"><span class="text-xl">📦</span><span>Đơn hàng</span><span id="market-order-count" class="hidden min-w-5 h-5 px-1 rounded-full bg-rose-600 text-white text-[10px] flex items-center justify-center">0</span></button>
+
+    <!-- Nút giải trí luôn trên màn hình; mini-game không còn chiếm chỗ trên bản đồ -->
+    <button onclick="openEntertainmentMenu()" id="entertainment-button" aria-label="Mở khu giải trí" class="interactive-ui fixed right-3 bottom-28 sm:right-5 sm:bottom-5 z-40 rounded-2xl px-3 py-2.5 sm:px-4 sm:py-3 bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white shadow-xl border border-white/70 font-black text-xs sm:text-sm flex items-center gap-2 max-w-[42vw] sm:max-w-none"><span class="text-xl sm:text-2xl">🎮</span><span>Giải trí</span></button>
+
     <!-- UI Overlay Layer -->
     <div class="ui-layer flex flex-col justify-between p-3 select-none">
         <!-- Top Navigation Bar -->
         <div class="flex justify-between items-start w-full gap-2">
             <!-- Player Stats -->
-            <div class="interactive-ui glass-panel rounded-2xl p-2 px-3 flex items-center gap-3 shadow-xl">
+            <button type="button" onclick="openPlayerProfile()" aria-label="Mở hồ sơ nhân vật và cài đặt" class="interactive-ui glass-panel rounded-2xl p-2 px-3 flex items-center gap-3 shadow-xl text-left hover:ring-2 hover:ring-amber-300 transition">
                 <div class="relative">
                     <div id="avatar-icon" class="w-12 h-12 rounded-full bg-gradient-to-tr from-amber-400 to-yellow-200 border-2 border-white flex items-center justify-center text-2xl shadow">🧑‍🌾</div>
                     <span id="player-level-badge" class="absolute -bottom-1 -right-1 bg-red-500 text-white font-black text-[11px] px-1.5 py-0.5 rounded-full border border-white">Lv.1</span>
                 </div>
                 <div>
-                    <div class="font-extrabold text-slate-800 text-xs sm:text-sm">Chibi Farmer</div>
+                    <div id="player-name-display" class="font-extrabold text-slate-800 text-xs sm:text-sm">Chibi Farmer</div>
                     <div class="w-28 sm:w-32 bg-slate-200 h-2.5 rounded-full overflow-hidden border border-slate-300 mt-1">
                         <div id="exp-bar" class="bg-gradient-to-r from-emerald-400 to-green-500 h-full w-0 transition-all duration-300"></div>
                     </div>
                     <span id="exp-text" class="text-[9px] text-slate-500 font-bold">0 / 100 EXP</span>
                 </div>
-            </div>
+            </button>
 
             <!-- Game Time, Weather & Resources -->
             <div class="flex flex-col gap-1.5 items-end">
@@ -58,57 +64,54 @@
                     <span class="text-sm">⚡</span>
                     <span id="stamina-display">100 / 100</span>
                 </div>
+                <button onclick="openModal('modal-quests')" class="interactive-ui glass-panel rounded-full px-3 py-2 shadow text-left max-w-[48vw] border border-violet-200 flex items-center gap-2">
+                    <span class="text-base">📜</span><b class="text-[10px] text-violet-800">Nhiệm vụ</b><span id="daily-quest-count" class="text-[9px] text-violet-700 font-black bg-violet-100 rounded-full px-2 py-1">0/3</span><span id="daily-quest-hud" class="hidden"> </span>
+                </button>
             </div>
         </div>
 
         <!-- Spacer -->
         <div class="pointer-events-none"></div>
 
-        <!-- Bottom Tool Bar -->
-        <div class="interactive-ui flex justify-center w-full mb-1">
-            <div class="glass-panel rounded-3xl p-2 px-3 flex items-center gap-2 sm:gap-3 shadow-2xl border-2 border-amber-300/80 max-w-full overflow-x-auto">
-                <button onclick="selectTool('hand')" id="tool-hand" class="tool-btn flex flex-col items-center justify-center w-12 h-12 rounded-2xl bg-amber-500 text-white shadow-md transition-all scale-105">
-                    <span class="text-xl">✋</span>
-                    <span class="text-[9px] font-bold">Bắt sâu/Chăm</span>
-                </button>
-                <button onclick="selectTool('water')" id="tool-water" class="tool-btn flex flex-col items-center justify-center w-12 h-12 rounded-2xl bg-slate-200 text-slate-700 hover:bg-amber-100 shadow-md transition-all">
-                    <span class="text-xl">💧</span>
-                    <span class="text-[9px] font-bold">Tưới nước</span>
-                </button>
-                <div class="w-px h-8 bg-slate-300/80 mx-0.5"></div>
-                <button onclick="openModal('modal-kitchen')" class="flex flex-col items-center justify-center w-11 h-11 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white shadow transition relative">
-                    <span class="text-lg">🍳</span>
-                    <span class="text-[9px] font-bold">4 Bếp Ăn</span>
-                </button>
-                <button onclick="openModal('modal-shop')" class="flex flex-col items-center justify-center w-11 h-11 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white shadow transition">
-                    <span class="text-lg">🛒</span>
-                    <span class="text-[9px] font-bold">Cửa hàng</span>
-                </button>
-                <button onclick="openModal('modal-inventory')" class="flex flex-col items-center justify-center w-11 h-11 rounded-2xl bg-sky-500 hover:bg-sky-600 text-white shadow transition">
-                    <span class="text-lg">🎒</span>
-                    <span class="text-[9px] font-bold">Túi đồ</span>
-                </button>
-                <button onclick="openModal('modal-market')" class="flex flex-col items-center justify-center w-11 h-11 rounded-2xl bg-orange-500 hover:bg-orange-600 text-white shadow transition">
-                    <span class="text-lg">🏪</span>
-                    <span class="text-[9px] font-bold">Sạp hàng</span>
-                </button>
-                <button onclick="openModal('modal-quests')" class="flex flex-col items-center justify-center w-11 h-11 rounded-2xl bg-purple-500 hover:bg-purple-600 text-white shadow transition relative">
-                    <span class="text-lg">📜</span>
-                    <span class="text-[9px] font-bold">Nhiệm vụ</span>
-                    <span id="quest-badge" class="hidden absolute top-0 right-0 w-3 h-3 bg-red-500 rounded-full border border-white animate-ping"></span>
-                </button>
-                <div class="w-px h-8 bg-slate-300/80 mx-0.5"></div>
-                <!-- Minigames -->
-                <button onclick="openHorseRaceModal()" class="flex flex-col items-center justify-center w-11 h-11 rounded-2xl bg-rose-500 hover:bg-rose-600 text-white shadow transition">
-                    <span class="text-lg">🐎</span>
-                    <span class="text-[9px] font-bold">Đua ngựa</span>
-                </button>
-                <button onclick="openBauCuaModal()" class="flex flex-col items-center justify-center w-11 h-11 rounded-2xl bg-indigo-500 hover:bg-indigo-600 text-white shadow transition">
-                    <span class="text-lg">🎲</span>
-                    <span class="text-[9px] font-bold">Bầu cua</span>
-                </button>
+        <!-- Dock thao tác nhanh: chăm sóc, tưới nước, cuốc, bếp, cửa hàng và túi đồ -->
+        <div class="interactive-ui flex justify-center w-full mb-1 px-1">
+            <div class="glass-panel rounded-3xl p-2 flex items-center justify-center gap-1.5 sm:gap-2 shadow-2xl border-2 border-amber-300/80 max-w-full">
+                <button onclick="selectTool('hand')" id="tool-hand" title="Chăm sóc" class="tool-btn flex flex-col items-center justify-center w-10 h-11 sm:w-11 rounded-2xl bg-amber-500 text-white shadow-md"><span class="text-xl">✋</span><span class="text-[9px] font-bold">Chăm</span></button>
+                <button onclick="selectTool('water')" id="tool-water" title="Tưới nước" class="tool-btn flex flex-col items-center justify-center w-10 h-11 sm:w-11 rounded-2xl bg-slate-200 text-slate-700 shadow-md"><span class="text-xl">💧</span><span class="text-[9px] font-bold">Tưới</span></button>
+                <button onclick="selectTool('chop')" id="tool-chop" title="Chặt cây" class="tool-btn flex flex-col items-center justify-center w-10 h-11 sm:w-11 rounded-2xl bg-slate-200 text-slate-700 shadow-md"><span class="text-xl">🪓</span><span class="text-[9px] font-bold">Cuốc</span></button>
+                <button onclick="openModal('modal-kitchen')" id="tool-kitchen" title="Mở nhà bếp" class="flex flex-col items-center justify-center w-10 h-11 sm:w-11 rounded-2xl bg-orange-500 text-white shadow"><span class="text-xl">🍳</span><span class="text-[9px] font-bold">Bếp</span></button>
+                <button onclick="openModal('modal-shop')" title="Cửa hàng" class="flex flex-col items-center justify-center w-10 h-11 sm:w-11 rounded-2xl bg-emerald-500 text-white shadow"><span class="text-xl">🛒</span><span class="text-[9px] font-bold">Shop</span></button>
+                <button onclick="openModal('modal-inventory')" title="Túi đồ" class="flex flex-col items-center justify-center w-10 h-11 sm:w-11 rounded-2xl bg-sky-500 text-white shadow"><span class="text-xl">🎒</span><span class="text-[9px] font-bold">Túi đồ</span></button>
             </div>
         </div>
+    </div>
+
+    <!-- Hồ sơ nhân vật: chỉ chân dung, thống kê nông trại và nút cài đặt -->
+    <div id="modal-player-profile" class="fixed inset-0 bg-black/50 z-50 hidden items-end sm:items-center justify-center p-3">
+      <div class="glass-panel w-full max-w-sm rounded-3xl p-4 shadow-2xl max-h-[88vh] overflow-y-auto">
+        <div class="flex justify-between items-center mb-3"><h3 class="font-black text-slate-800">📋 Thống kê nông trại</h3><button onclick="closeModal('modal-player-profile')" class="rounded-full bg-slate-200 w-8 h-8 font-bold">✕</button></div>
+        <div class="rounded-2xl bg-gradient-to-r from-emerald-100 to-amber-100 border border-emerald-200 p-3 mb-3 flex items-center gap-3">
+          <div id="profile-avatar" class="w-16 h-16 shrink-0 rounded-full bg-gradient-to-tr from-amber-400 to-yellow-200 border-2 border-white flex items-center justify-center text-4xl shadow">🧑‍🌾</div>
+          <div class="font-black text-emerald-950 min-w-0" id="profile-player-name">Chibi Farmer</div>
+        </div>
+        <div id="profile-statistics-list" class="flex flex-col gap-2" aria-live="polite"></div>
+        <button onclick="closeModal('modal-player-profile');openSettings()" class="w-full mt-3 p-3 rounded-2xl bg-slate-800 text-white font-bold text-sm shadow">⚙️ Cài đặt</button>
+      </div>
+    </div>
+
+    <!-- Menu phụ cũ được giữ lại để tương thích nếu một phần mở rộng còn gọi tới -->
+    <div id="modal-quick-menu" class="fixed inset-0 bg-black/50 z-50 hidden items-end sm:items-center justify-center p-3">
+      <div class="glass-panel w-full max-w-sm rounded-3xl p-4 shadow-2xl">
+        <div class="flex justify-between items-center mb-3"><h3 class="font-black text-slate-800">🧰 Tiện ích nông trại</h3><button onclick="closeModal('modal-quick-menu')" class="rounded-full bg-slate-200 w-8 h-8 font-bold">✕</button></div>
+        <div class="grid grid-cols-2 gap-2">
+          <button onclick="closeModal('modal-quick-menu');openModal('modal-kitchen')" class="p-3 rounded-2xl bg-amber-100 text-amber-900 font-bold text-sm">🍳 Bếp nấu</button>
+          <button onclick="closeModal('modal-quick-menu');openModal('modal-quests')" class="p-3 rounded-2xl bg-violet-100 text-violet-900 font-bold text-sm">📜 Nhiệm vụ</button>
+          <button onclick="closeModal('modal-quick-menu');openFishPondModal()" class="p-3 rounded-2xl bg-sky-100 text-sky-900 font-bold text-sm">🐟 Ao cá & vịt</button>
+          <button onclick="closeModal('modal-quick-menu');openSettings()" class="p-3 rounded-2xl bg-slate-100 text-slate-800 font-bold text-sm">⚙️ Cài đặt & lưu</button>
+          <button onclick="closeModal('modal-quick-menu');openPlotUpgradeModal()" class="p-3 rounded-2xl bg-amber-100 text-amber-900 font-bold text-sm">🌟 Nâng cấp ô đất</button>
+        </div>
+        <p class="text-[11px] text-slate-500 mt-3">Nâng cấp ô đất để tăng sản lượng. Đua ngựa và bầu cua nằm trong nút Giải trí cố định trên màn hình.</p>
+      </div>
     </div>
 
     <!-- TOAST POPUP CONTAINER -->
@@ -128,7 +131,7 @@
 
     <!-- SEED SELECTION MODAL -->
     <div id="modal-seeds" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 hidden flex items-center justify-center p-4">
-        <div class="glass-panel w-full max-w-md rounded-3xl p-5 shadow-2xl flex flex-col max-h-[80vh]">
+        <div class="glass-panel w-full max-w-md rounded-3xl p-4 sm:p-5 shadow-2xl flex flex-col h-[78vh] max-h-[780px]">
             <div class="flex justify-between items-center mb-3">
                 <h3 class="text-base sm:text-lg font-black text-slate-800 flex items-center gap-2">🌱 Chọn Hạt Giống Trồng</h3>
                 <button onclick="closeModal('modal-seeds')" class="w-8 h-8 rounded-full bg-slate-200 text-slate-600 font-bold hover:bg-slate-300">✕</button>
@@ -139,7 +142,7 @@
 
     <!-- TREE SAPLING PLANTING MODAL -->
     <div id="modal-tree-saplings" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 hidden flex items-center justify-center p-4">
-        <div class="glass-panel w-full max-w-md rounded-3xl p-5 shadow-2xl flex flex-col max-h-[80vh]">
+        <div class="glass-panel w-full max-w-md rounded-3xl p-4 sm:p-5 shadow-2xl flex flex-col h-[78vh] max-h-[780px]">
             <div class="flex justify-between items-center mb-3">
                 <h3 class="text-base sm:text-lg font-black text-slate-800 flex items-center gap-2">🌳 Chọn Cây Giống Ăn Quả</h3>
                 <button onclick="closeModal('modal-tree-saplings')" class="w-8 h-8 rounded-full bg-slate-200 text-slate-600 font-bold hover:bg-slate-300">✕</button>
@@ -155,7 +158,8 @@
                 <h3 id="animal-pen-title" class="text-base sm:text-lg font-black text-slate-800 flex items-center gap-2">🏡 Quản Lý Chuồng</h3>
                 <button onclick="closeModal('modal-animal-pen')" class="w-8 h-8 rounded-full bg-slate-200 text-slate-600 font-bold hover:bg-slate-300">✕</button>
             </div>
-            <p id="animal-pen-status" class="text-xs text-slate-600 mb-4 bg-slate-100 p-2.5 rounded-xl border border-slate-200 leading-relaxed">Thông tin chuồng...</p>
+            <div id="animal-pen-status" class="text-xs text-slate-600 mb-3 bg-slate-100 p-2.5 rounded-xl border border-slate-200 leading-relaxed">Thông tin chuồng...</div>
+            <button id="pen-upgrade-button" class="w-full mb-3 py-2 rounded-xl text-xs font-black bg-violet-600 text-white">⬆️ Nâng cấp chuồng</button>
             <div class="grid grid-cols-2 gap-3 mb-2">
                 <button onclick="executePenAction('feed')" class="p-3 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl font-bold text-xs flex flex-col items-center gap-1 shadow">
                     <span class="text-2xl">🌾</span><span>Cho Ăn (-1⚡)</span>
@@ -175,13 +179,25 @@
 
     <!-- FISH POND MODAL -->
     <div id="modal-fish-select" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 hidden flex items-center justify-center p-4">
-        <div class="glass-panel w-full max-w-md rounded-3xl p-5 shadow-2xl flex flex-col max-h-[80vh]">
+        <div class="glass-panel w-full max-w-md rounded-3xl p-4 sm:p-5 shadow-2xl flex flex-col h-[78vh] max-h-[780px]">
             <div class="flex justify-between items-center mb-3">
                 <h3 class="text-base sm:text-lg font-black text-slate-800 flex items-center gap-2">🐟 Quản Lý Ao Cá</h3>
                 <button onclick="closeModal('modal-fish-select')" class="w-8 h-8 rounded-full bg-slate-200 text-slate-600 font-bold hover:bg-slate-300">✕</button>
             </div>
-            <button onclick="harvestFishFromPond()" class="mb-3 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-black text-xs rounded-2xl shadow">🧺 Thu Hoạch Tất Cả Cá Lớn</button>
-            <div id="fish-stock-list" class="grid grid-cols-2 gap-3 overflow-y-auto p-1 flex-1"></div>
+            <div id="pond-summary" class="mb-3"></div>
+            <div class="grid grid-cols-3 gap-2 mb-3 sticky top-0 bg-white z-10">
+                <button id="pond-tab-fish" onclick="setPondManagementTab('fish')" class="py-2.5 rounded-xl text-xs font-black border bg-sky-600 text-white">🐟 Cá</button>
+                <button id="pond-tab-duck" onclick="setPondManagementTab('duck')" class="py-2.5 rounded-xl text-xs font-black border bg-amber-50 text-amber-900 border-amber-200">🦆 Vịt</button>
+                <button id="pond-tab-upgrade" onclick="setPondManagementTab('upgrade')" class="py-2.5 rounded-xl text-xs font-black border bg-emerald-50 text-emerald-900 border-emerald-200">🏡 Nâng cấp</button>
+            </div>
+            <div id="pond-panel-fish" class="flex flex-col gap-3 overflow-y-auto flex-1 min-h-0">
+                <div id="pond-fish-care"></div>
+                <button onclick="harvestFishFromPond()" class="w-full py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-black text-sm rounded-2xl shadow">🧺 Thu hoạch cá đủ lớn</button>
+                <div class="text-xs font-black text-slate-600 px-1">CÁ GIỐNG</div>
+                <div id="fish-stock-list" class="grid grid-cols-2 gap-3 p-1"></div>
+            </div>
+            <div id="pond-panel-duck" class="hidden overflow-y-auto flex-1 min-h-0"><div id="pond-duck-controls"></div></div>
+            <div id="pond-panel-upgrade" class="hidden overflow-y-auto flex-1 min-h-0"><div id="pond-upgrade-panel"></div></div>
         </div>
     </div>
 
@@ -214,19 +230,30 @@
                 </div>
             </div>
 
-            <!-- Thanh Tab Chuyển Mục (Giữ nguyên Flex, không bao giờ mất) -->
-            <div class="flex gap-1 overflow-x-auto text-xs font-bold no-scrollbar pt-0.5">
-                <button onclick="switchShopTab('seeds')" id="tab-shop-seeds" class="shop-tab-btn flex-1 py-1.5 px-2.5 rounded-xl bg-amber-500 text-white shadow whitespace-nowrap text-[11px] font-black transition">🌱 Hạt Giống</button>
-                <button onclick="switchShopTab('trees')" id="tab-shop-trees" class="shop-tab-btn flex-1 py-1.5 px-2.5 rounded-xl bg-slate-200/60 text-slate-600 hover:bg-slate-200 whitespace-nowrap text-[11px] font-black transition">🌳 Cây Giống</button>
-                <button onclick="switchShopTab('animals')" id="tab-shop-animals" class="shop-tab-btn flex-1 py-1.5 px-2.5 rounded-xl bg-slate-200/60 text-slate-600 hover:bg-slate-200 whitespace-nowrap text-[11px] font-black transition">🐥 Vật Nuôi</button>
-                <button onclick="switchShopTab('recipes')" id="tab-shop-recipes" class="shop-tab-btn flex-1 py-1.5 px-2.5 rounded-xl bg-slate-200/60 text-slate-600 hover:bg-slate-200 whitespace-nowrap text-[11px] font-black transition">📜 Công Thức</button>
-                <button onclick="switchShopTab('supplies')" id="tab-shop-supplies" class="shop-tab-btn flex-1 py-1.5 px-2.5 rounded-xl bg-slate-200/60 text-slate-600 hover:bg-slate-200 whitespace-nowrap text-[11px] font-black transition">💊 Vật Tư</button>
-                <button onclick="switchShopTab('sell')" id="tab-shop-sell" class="shop-tab-btn flex-1 py-1.5 px-2.5 rounded-xl bg-slate-200/60 text-slate-600 hover:bg-slate-200 whitespace-nowrap text-[11px] font-black transition">💰 Bán Đồ</button>
+            <!-- Chuyển chế độ mua/bán: tách khỏi danh mục để giảm số tab -->
+            <div class="grid grid-cols-2 gap-1 rounded-xl bg-slate-200/70 p-1">
+                <button onclick="switchShopMode('buy')" id="shop-mode-buy" class="shop-mode-btn rounded-lg py-2 text-xs font-black transition bg-emerald-600 text-white shadow">🛒 Mua hàng</button>
+                <button onclick="switchShopMode('sell')" id="shop-mode-sell" class="shop-mode-btn rounded-lg py-2 text-xs font-black transition bg-white text-slate-600">💰 Bán đồ</button>
+            </div>
+
+            <!-- Chỉ còn 4 danh mục chính -->
+            <div id="shop-buy-categories" class="grid grid-cols-4 gap-1 text-[10px] sm:text-[11px] font-black">
+                <button onclick="switchShopTab('plants')" id="tab-shop-plants" class="shop-tab-btn py-2 px-1 rounded-xl bg-amber-500 text-white shadow transition">🌿 Giống cây</button>
+                <button onclick="switchShopTab('animals')" id="tab-shop-animals" class="shop-tab-btn py-2 px-1 rounded-xl bg-white text-slate-600 border border-slate-200 transition">🐥 Vật nuôi</button>
+                <button onclick="switchShopTab('recipes')" id="tab-shop-recipes" class="shop-tab-btn py-2 px-1 rounded-xl bg-white text-slate-600 border border-slate-200 transition">📜 Công thức</button>
+                <button onclick="switchShopTab('supplies')" id="tab-shop-supplies" class="shop-tab-btn py-2 px-1 rounded-xl bg-white text-slate-600 border border-slate-200 transition">🧰 Vật tư</button>
+            </div>
+
+            <!-- Bộ lọc phụ chỉ xuất hiện trong danh mục Giống cây -->
+            <div id="shop-plant-subtabs" class="flex gap-2">
+                <button onclick="switchPlantType('crops')" id="shop-plant-crops" class="shop-plant-subtab-btn px-3 py-1.5 rounded-full text-[11px] font-extrabold bg-emerald-100 text-emerald-700 border border-emerald-200">🌱 Cây trồng</button>
+                <button onclick="switchPlantType('trees')" id="shop-plant-trees" class="shop-plant-subtab-btn px-3 py-1.5 rounded-full text-[11px] font-extrabold bg-white text-slate-500 border border-slate-200">🍎 Cây ăn quả</button>
             </div>
         </div>
 
         <!-- KHUNG DANH SÁCH CUỘN NỘI BỘ (H-[350PX] CỐ ĐỊNH) -->
         <div class="p-3 bg-slate-100/50 flex-1 overflow-y-auto">
+            <div id="shop-stock-note" class="mb-2 text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">🔓 Hàng mở khóa theo cấp nhân vật; giá và thời gian sinh trưởng cố định.</div>
             <div id="shop-items-container" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 content-start min-h-full">
                 <!-- JS Render tại đây -->
             </div>
@@ -256,24 +283,24 @@
         </div>
     </div>
 
-    <!-- 4-STOVE KITCHEN MODAL -->
+    <!-- CHIBI KITCHEN MODAL -->
     <div id="modal-kitchen" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 hidden flex items-center justify-center p-4">
         <div class="glass-panel w-full max-w-xl rounded-3xl p-5 shadow-2xl flex flex-col max-h-[90vh]">
             <div class="flex justify-between items-center mb-2">
                 <div>
-                    <h3 class="text-lg sm:text-xl font-black text-slate-800 flex items-center gap-2">🍳 Khu Vực 4 Bếp Nấu Ăn</h3>
-                    <p class="text-xs text-slate-500">Mở khóa bếp mới theo level để chế biến đồng thời nhiều món ăn!</p>
+                    <h3 class="text-lg sm:text-xl font-black text-slate-800 flex items-center gap-2">🍳 Nhà Bếp Chibi</h3>
+                    <p class="text-xs text-slate-500">Nấu nhiều món song song · mỗi bếp có 1 món đang nấu và tối đa 3 món chờ.</p>
                 </div>
                 <button onclick="closeModal('modal-kitchen')" class="w-8 h-8 rounded-full bg-slate-200 text-slate-600 font-bold hover:bg-slate-300">✕</button>
             </div>
 
             <!-- Stove Selector Tabs -->
-            <div id="kitchen-stoves-tabs" class="grid grid-cols-4 gap-2 mb-3"></div>
+            <div id="kitchen-stoves-tabs" class="grid grid-cols-3 gap-2 mb-3"></div>
 
             <!-- Selected Stove Section -->
-            <div id="stove-cooking-status" class="bg-amber-50 rounded-2xl p-3 border border-amber-200 mb-3 text-xs"></div>
+            <div id="stove-cooking-status" class="bg-gradient-to-br from-orange-50 to-amber-100 rounded-2xl p-3 border border-amber-200 mb-3 text-xs shadow-inner"></div>
 
-            <div id="kitchen-recipes-container" class="grid grid-cols-1 sm:grid-cols-2 gap-3 overflow-y-auto p-1 flex-1"></div>
+            <div id="kitchen-recipes-container" class="grid grid-cols-1 gap-3 overflow-y-auto p-1 flex-1"></div>
         </div>
     </div>
 
@@ -283,7 +310,7 @@
             <div class="flex justify-between items-center mb-1">
                 <div>
                     <h3 class="text-lg sm:text-xl font-black text-slate-800 flex items-center gap-2">🏪 Sạp Hàng Dân Làng</h3>
-                    <p class="text-xs text-amber-600 font-semibold">Tự động làm mới đơn hàng đa dạng khi hoàn thành tất cả đơn!</p>
+                    <p class="text-xs text-amber-600 font-semibold">Mở nút Đơn hàng để xem, chuẩn bị nguyên liệu và giao đơn.</p>
                 </div>
                 <button onclick="closeModal('modal-market')" class="w-8 h-8 rounded-full bg-slate-200 text-slate-600 font-bold hover:bg-slate-300">✕</button>
             </div>
@@ -425,11 +452,32 @@
         </div>
     </div>
 
+
+    <div id="modal-entertainment" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+      <div class="glass-panel w-full max-w-sm rounded-3xl p-5 shadow-2xl"><div class="flex justify-between items-center mb-4"><h3 class="font-black text-lg">🎮 Khu giải trí</h3><button onclick="closeModal('modal-entertainment')" class="rounded-full bg-slate-200 w-8 h-8 font-bold">✕</button></div><div class="grid grid-cols-2 gap-3"><button onclick="closeModal('modal-entertainment');openHorseRaceModal()" class="p-4 rounded-2xl bg-gradient-to-br from-amber-100 to-orange-200 border border-amber-300 text-amber-950 font-black"><span class="text-4xl block mb-2">🏇</span>Đua ngựa</button><button onclick="closeModal('modal-entertainment');openBauCuaModal()" class="p-4 rounded-2xl bg-gradient-to-br from-violet-100 to-fuchsia-200 border border-violet-300 text-violet-950 font-black"><span class="text-4xl block mb-2">🎲</span>Bầu cua</button></div><p class="text-xs text-slate-500 mt-3">Mini-game mở trực tiếp từ giao diện, không cần đi tới địa điểm trên bản đồ.</p></div>
+    </div>
+    <div id="modal-plot-upgrade" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-3">
+      <div class="glass-panel w-full max-w-lg rounded-3xl p-4 shadow-2xl max-h-[88vh] flex flex-col"><div class="flex justify-between items-center mb-2"><h3 class="font-black text-lg">🌟 Nâng cấp ô đất</h3><button onclick="closeModal('modal-plot-upgrade')" class="rounded-full bg-slate-200 w-8 h-8 font-bold">✕</button></div><p class="text-xs text-slate-600 mb-3">Cấp cao cho nhiều sản phẩm hơn. Chi phí tăng mạnh và yêu cầu cấp nhân vật cao.</p><div id="plot-upgrade-list" class="flex flex-col gap-2 overflow-y-auto"></div></div>
+    </div>
+    <div id="modal-settings" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+      <div class="glass-panel w-full max-w-md rounded-3xl p-5 shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div class="flex justify-between items-center mb-4"><h3 class="font-black text-lg text-slate-800">⚙️ Cài đặt & dữ liệu</h3><button onclick="closeModal('modal-settings')" class="rounded-full bg-slate-200 w-8 h-8 font-bold">✕</button></div>
+        <label class="block text-xs font-bold mb-1">Tên nhân vật</label><div class="flex gap-2 mb-4"><input id="setting-player-name" maxlength="24" class="min-w-0 flex-1 rounded-xl border p-2" placeholder="Tên nhân vật"><button onclick="savePlayerName()" class="px-3 rounded-xl bg-emerald-600 text-white font-bold text-xs">Đổi tên</button></div>
+        <div class="grid grid-cols-1 gap-2 mb-4"><label class="p-3 bg-white rounded-xl border flex items-center gap-2 text-sm"><input id="setting-sound" type="checkbox" onchange="saveAudioSettings()"> 🔊 Hiệu ứng âm thanh giao diện</label><p class="text-[11px] text-slate-500">Nhạc nền chưa được tích hợp; save cũ có trường nhạc vẫn được giữ tương thích.</p></div>
+        <div class="grid grid-cols-2 gap-2"><button onclick="exportFarmSave()" class="p-3 rounded-xl bg-sky-600 text-white font-bold text-sm">⬇️ Xuất save</button><button onclick="document.getElementById('import-save-file').click()" class="p-3 rounded-xl bg-violet-600 text-white font-bold text-sm">⬆️ Nhập save</button></div>
+        <input id="import-save-file" type="file" accept="application/json,.json" class="hidden" onchange="importFarmSave(event)">
+        <button onclick="startNewFarm()" class="w-full mt-3 p-3 rounded-xl bg-rose-100 text-rose-700 border border-rose-200 font-black text-sm">🆕 Tạo nông trại mới</button>
+        <p class="text-[11px] text-slate-500 mt-3">Xuất save để sao lưu tiến trình. Nhập save sẽ thay thế tiến trình hiện tại sau khi xác nhận.</p>
+      </div>
+    </div>
+
+    <script>function openEntertainmentMenu(){openModal('modal-entertainment');}</script>
     <!-- JS MODULES INCLUSION -->
     <script src="js/config/constants.js"></script>
     <script src="js/config/database.js"></script>
     <script src="js/state/gameState.js"></script>
     <script src="js/ui/toast.js"></script>
+    <script src="js/ui/saveSettings.js"></script>
     <script src="js/ui/uiManager.js"></script>
     <script src="js/ui/modalManager.js"></script>
     <script src="js/ui/floatingHud.js"></script>
@@ -438,6 +486,7 @@
     <script src="js/ui/kitchenUI.js"></script>
     <script src="js/ui/marketUI.js"></script>
     <script src="js/ui/questsUI.js"></script>
+    <script src="js/ui/dailyQuestHud.js"></script>
     <script src="js/minigames/horseRace.js"></script>
     <script src="js/minigames/bauCua.js"></script>
 
