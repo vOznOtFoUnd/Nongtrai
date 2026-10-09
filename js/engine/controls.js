@@ -66,7 +66,7 @@ function setupTouchAndClickEvents() {
             e.target.closest('#modal-animal-pen') || 
             e.target.closest('#modal-fish-select') || 
             e.target.closest('#modal-seeds') || 
-            e.target.closest('#modal-tree-saplings')) {
+            e.target.closest('#modal-tree-saplings') || e.target.closest('#modal-plot-upgrade') || e.target.closest('#modal-quick-menu') || e.target.closest('#modal-player-profile') || e.target.closest('#modal-settings')) {
             return;
         }
 
@@ -97,9 +97,25 @@ function setupTouchAndClickEvents() {
                 pendingWorldInteraction = () => handleOrchardClick(idx);
             } else if (type && type.endsWith('_trigger')) {
                 playerTargetPos = new THREE.Vector3(hitObj.position.x, 0, hitObj.position.z);
+            } else if (type === 'plot_upgrade_npc') {
+                const worldPos = hitObj.getWorldPosition(new THREE.Vector3());
+                playerTargetPos = new THREE.Vector3(worldPos.x, 0, worldPos.z + 1.5);
+                pendingWorldInteraction = () => openPlotUpgradeModal();
             } else if (type === 'pond') {
                 playerTargetPos = new THREE.Vector3(0, 0, 20 - 4);
                 pendingWorldInteraction = () => openFishPondModal();
+            } else if (type === 'minigame_horse') {
+                const worldPos = hitObj.getWorldPosition(new THREE.Vector3());
+                playerTargetPos = new THREE.Vector3(worldPos.x, 0, worldPos.z + 1.5);
+                pendingWorldInteraction = () => openHorseRaceModal();
+            } else if (type === 'minigame_baucua') {
+                const worldPos = hitObj.getWorldPosition(new THREE.Vector3());
+                playerTargetPos = new THREE.Vector3(worldPos.x, 0, worldPos.z + 2.5);
+                pendingWorldInteraction = () => openBauCuaModal();
+            } else if (type === 'market_sign') {
+                const worldPos = hitObj.getWorldPosition(new THREE.Vector3());
+                playerTargetPos = new THREE.Vector3(worldPos.x, 0, worldPos.z + 2.0);
+                pendingWorldInteraction = () => openModal('modal-market');
             } else if (type === 'stove') {
                 playerTargetPos = new THREE.Vector3(hitObj.position.x, 0, hitObj.position.z + 1.2);
                 pendingWorldInteraction = () => openModal('modal-kitchen');
