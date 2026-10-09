@@ -109,6 +109,7 @@ function startHorseRace() {
     if (btn) btn.disabled = true;
 
     const pos = [0, 0, 0, 0];
+    if (typeof setWorldRaceProgress === 'function') setWorldRaceProgress(pos);
     const interval = setInterval(() => {
         for (let i = 0; i < 4; i++) {
             pos[i] += Math.random() * 8 + 2;
@@ -116,8 +117,10 @@ function startHorseRace() {
             if (el) el.style.left = Math.min(85, pos[i]) + '%';
         }
 
+        if (typeof setWorldRaceProgress === 'function') setWorldRaceProgress(pos.map(v=>Math.min(1,v/85)));
         if (pos.some(p => p >= 85)) {
             clearInterval(interval);
+            if (typeof setWorldRaceProgress === 'function') setWorldRaceProgress(null);
             const winner = pos.indexOf(Math.max(...pos)) + 1;
             const isWin = winner === horseBetNumber;
 
