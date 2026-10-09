@@ -72,3 +72,31 @@ body, html {
     z-index: 20;
     white-space: nowrap;
 }
+
+/* Clear visual cue for watered plots and readable floating production HUDs */
+.hud-badge { text-shadow: 0 1px 0 rgba(255,255,255,.25); }
+
+
+/* Safe-area and compact-screen support for phones with gesture bars/notches. */
+#entertainment-button {
+    right: max(0.75rem, env(safe-area-inset-right));
+    bottom: calc(7rem + env(safe-area-inset-bottom));
+}
+#toast-container {
+    right: calc(0.5rem + env(safe-area-inset-right));
+    bottom: calc(7rem + env(safe-area-inset-bottom));
+    max-width: min(22rem, calc(100vw - 1rem));
+}
+@media (min-width: 640px) {
+    #entertainment-button {
+        right: calc(1.25rem + env(safe-area-inset-right));
+        bottom: calc(1.25rem + env(safe-area-inset-bottom));
+    }
+    #toast-container {
+        right: calc(1.25rem + env(safe-area-inset-right));
+        bottom: calc(7rem + env(safe-area-inset-bottom));
+    }
+}
+
+/* UPGRADE 12: compact pastel chibi feedback; labels are rendered as world-space sprites. */
+.toast-item { border-radius: 22px !important; background: rgba(255,250,242,.96) !important; border-color: #f5c6d8 !important; box-shadow: 0 10px 28px rgba(112,91,135,.18) !important; }
