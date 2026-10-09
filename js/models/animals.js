@@ -1,5 +1,6 @@
 let chickenMeshes = [], cowMeshes = [], pigMeshes = [];
 let currentPenType = null;
+let animalPenFenceMeshes = {};
 
 // Hàm dựng Hàng rào Chuồng
 function buildPenFence(x, z, width, depth, gateSide = 'front') {
@@ -338,17 +339,20 @@ function createPigModel(data) {
 }
 
 function buildChickenPen() {
-    buildPenFence(-20, -18, 8, 6, 'front');
+    animalPenFenceMeshes.chicken = buildPenFence(-20, -18, 8, 6, 'front');
+    const sc=1+((Number(gameState.penLevels?.chicken)||1)-1)*0.12; animalPenFenceMeshes.chicken.scale.set(sc,1,sc);
     updateAnimalPen3DMeshes('chicken');
 }
 
 function buildCowBarn() {
-    buildPenFence(-20, 10, 9, 7, 'front');
+    animalPenFenceMeshes.cow = buildPenFence(-20, 10, 9, 7, 'front');
+    const sc=1+((Number(gameState.penLevels?.cow)||1)-1)*0.12; animalPenFenceMeshes.cow.scale.set(sc,1,sc);
     updateAnimalPen3DMeshes('cow');
 }
 
 function buildPigPen() {
-    buildPenFence(20, 14, 8, 6, 'front');
+    animalPenFenceMeshes.pig = buildPenFence(20, 14, 8, 6, 'front');
+    const sc=1+((Number(gameState.penLevels?.pig)||1)-1)*0.12; animalPenFenceMeshes.pig.scale.set(sc,1,sc);
     updateAnimalPen3DMeshes('pig');
 }
 
@@ -459,14 +463,16 @@ function openAnimalPenModal(penType) {
     let arrayName = penType === 'chicken' ? 'chickens' : (penType === 'cow' ? 'cows' : 'pigs');
     const items = gameState[arrayName] || [];
 
-    let text = `Số lượng vật nuôi: <b>${items.length}</b><br>`;
+    const level=Number((gameState.penLevels||{})[penType])||1; const capacity=2+(level-1)*2; const feedKey='feed_'+penType; const buyKey='buy_'+penType;
+    let text = `<div class="grid grid-cols-2 gap-2 mb-2"><div class="rounded-lg bg-white p-2 border"><b>🏡 Cấp chuồng ${level}/5</b><div class="text-[10px]">Sức chứa ${items.length}/${capacity}</div></div><div class="rounded-lg bg-white p-2 border"><b>📦 Kho hiện có</b><div class="text-[10px]">${Number(gameState.inventory[feedKey])||0} cám • ${Number(gameState.inventory[buyKey])||0} giống</div></div></div>`;
     let hungryCount = items.filter(a => a.hungry).length;
     let sickCount = items.filter(a => a.sick).length;
 
     text += `Tình trạng: <span class="${hungryCount > 0 ? 'text-amber-600 font-bold' : 'text-emerald-600'}">${hungryCount} con đói</span> | <span class="${sickCount > 0 ? 'text-rose-600 font-bold' : 'text-emerald-600'}">${sickCount} con bệnh</span>`;
     const statusEl = document.getElementById('animal-pen-status');
+    text += `<div class="mt-2 text-[10px]">Sức khỏe: ${items.length-hungryCount-sickCount} ổn • ${hungryCount} đói • ${sickCount} bệnh</div>`;
     if (statusEl) statusEl.innerHTML = text;
-
+    const upgrade=document.getElementById('pen-upgrade-button'); if(upgrade){const cost=level*1000;upgrade.disabled=level>=5;upgrade.className=`w-full mt-2 py-2 rounded-xl text-xs font-black ${level>=5?'bg-slate-300 text-slate-500':'bg-violet-600 text-white'}`;upgrade.textContent=level>=5?'Chuồng đã tối đa cấp':`⬆️ Nâng cấp chuồng (+2 slot) — ${cost} 🪙`;upgrade.onclick=upgradeAnimalPen;}
     openModal('modal-animal-pen');
 }
 
@@ -480,7 +486,7 @@ function executePenAction(action) {
         const feedKey = 'feed_' + currentPenType;
         
         // Lọc các con có điểm hunger < 80 (cần ăn)
-        const hungryList = items.filter(a => (a.hunger === undefined ? 100 : a.hunger) < 80 || a.hungry);
+        const hungryList = items.filter(a => (a.hunger === undefined ? 100 : a.hunger) <= 40 || a.hungry);
         
         if (hungryList.length === 0) {
             showToast("Vật Nuôi Đã No 🌾", "Tất cả vật nuôi trong chuồng đều đang no căng bụng!", "ℹ️");
@@ -534,6 +540,8 @@ function executePenAction(action) {
             saveGame();
         }
     } else if (action === 'add') {
+        const level=Number((gameState.penLevels||{})[currentPenType])||1; const capacity=2+(level-1)*2;
+        if(items.length>=capacity){showToast('Chuồng đã đầy 🏡',`Chuồng cấp ${level} chứa tối đa ${capacity} con. Hãy nâng cấp chuồng.`,'ℹ️');return;}
         const buyKey = 'buy_' + currentPenType;
         if ((gameState.inventory[buyKey] || 0) <= 0) {
             showToast("Hết Con Giống! 🐥", "Hãy ghé Cửa Hàng mua con giống mới!", "❌");
@@ -553,7 +561,7 @@ function executePenAction(action) {
                 sick: false,
                 starvingStartAt: null,
                 lastSickDay: 0,
-                producedAt: Date.now(),
+                producedAt: Date.now() + ((currentPenType === 'chicken' ? 300 : currentPenType === 'cow' ? 600 : 900) * 1000),
                 x: posX,
                 z: posZ
             });
@@ -583,6 +591,8 @@ function executePenAction(action) {
                     // Giữ lại những con heo chưa lớn hoặc đang bệnh/đói
                     const remainingPigs = items.filter(p => p.sick || (p.hunger !== undefined && p.hunger <= 0) || ((now - p.bornAt) / 1000) < cfg.growTime);
                     const pigYieldCount = readyPigs.length;
+                    if (!gameState.statistics || typeof gameState.statistics !== 'object') gameState.statistics = { animalsSold: 0, mealsCooked: 0, playTimeSeconds: 0, animalSicknessEvents: 0, cropsPlanted: 0 };
+                    gameState.statistics.animalsSold = (Number(gameState.statistics.animalsSold) || 0) + pigYieldCount;
 
                     gameState.inventory['pork'] = (gameState.inventory['pork'] || 0) + pigYieldCount;
                     addExp(pigYieldCount * 30);
@@ -610,7 +620,7 @@ function executePenAction(action) {
                 const ageSecs = (now - a.bornAt) / 1000;
                 if (ageSecs < cfg.growTime) return;
 
-                const lastTime = a.producedAt || (a.bornAt + cfg.growTime * 1000);
+                const lastTime = Math.max(Number(a.producedAt) || 0, a.bornAt + cfg.growTime * 1000);
                 const elapsed = (now - lastTime) / 1000;
 
                 if (elapsed >= cfg.cycleTime && (a.yieldCount || 0) < 10) {
@@ -641,6 +651,8 @@ function executePenAction(action) {
                     updateAnimalPen3DMeshes(currentPenType);
 
                     if (retiredCount > 0) {
+                        if (!gameState.statistics || typeof gameState.statistics !== 'object') gameState.statistics = { animalsSold: 0, mealsCooked: 0, playTimeSeconds: 0, animalSicknessEvents: 0, cropsPlanted: 0 };
+                        gameState.statistics.animalsSold = (Number(gameState.statistics.animalsSold) || 0) + retiredCount;
                         showToast("Thu Hoạch & Xuất Chuồng! 🧺", `Thu được ${harvestedProdCount} ${cfg.name}. Có ${retiredCount} con đã cho đủ 10 lần sản phẩm và xuất chuồng!`, "🎉", 4000);
                     } else {
                         showToast("Thu Hoạch Sản Phẩm! 🧺", `Thu được ${harvestedProdCount} ${cfg.name}!`, "✨");
@@ -656,3 +668,5 @@ function executePenAction(action) {
         }
     }
 }
+
+function upgradeAnimalPen(){if(!currentPenType)return;const levels=gameState.penLevels||(gameState.penLevels={chicken:1,cow:1,pig:1});const lvl=Number(levels[currentPenType])||1;if(lvl>=5){showToast('Chuồng đã tối đa','Chuồng đã đạt cấp 5.','ℹ️');return;}const cost=lvl*1000;if(gameState.gold<cost){showToast('Thiếu vàng',`Cần ${cost} vàng để nâng cấp chuồng.`,'❌');return;}gameState.gold-=cost;levels[currentPenType]=lvl+1;const fence=animalPenFenceMeshes[currentPenType];if(fence){const scale=1+(levels[currentPenType]-1)*0.12;fence.scale.set(scale,1,scale);}updateUI();saveGame();openAnimalPenModal(currentPenType);showToast('Nâng cấp chuồng thành công',`Chuồng ${currentPenType} lên cấp ${lvl+1}, sức chứa ${2+lvl*2} con.`,'✨');}

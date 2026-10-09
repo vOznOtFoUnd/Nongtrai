@@ -66,6 +66,8 @@ function updatePlotVisual(idx, fullRebuild = false) {
     const plot = gameState.plots[idx];
     if (!plot) return;
 
+    if (mesh.material && mesh.material.color) { const req = Math.floor(idx / 6) * 10; const lockedColor = gameState.level >= req ? 0xeab308 : 0x475569; mesh.material.color.setHex(!gameState.unlockedPlots[idx] ? lockedColor : (plot.watered ? 0x6f8f86 : 0xc28544)); }
+
     if (mesh.userData.cropMesh) {
         mesh.remove(mesh.userData.cropMesh);
         mesh.userData.cropMesh = null;
@@ -111,26 +113,9 @@ function handlePlotClick(idx) {
     selectedPlotIdx = idx;
 
     if (!gameState.unlockedPlots[idx]) {
-        const groupIndex = Math.floor(idx / 6);
-        const unlockLevelReq = groupIndex * 10;
-
-        if (gameState.level < unlockLevelReq) {
-            return;
-        }
-
-        const cost = 200 + idx * 50;
-        if (confirm(`Bạn đã đạt Level ${gameState.level}! Bạn có muốn mở khóa ô đất số ${idx + 1} với giá ${cost} 🪙 không?`)) {
-            if ((gameState.gold || 0) >= cost) {
-                gameState.gold -= cost;
-                gameState.unlockedPlots[idx] = true;
-                plotMeshes[idx].material.color.setHex(0xc28544);
-                showToast("Mở Khoá Đất! 🌾", `Đã mở khóa ô đất ${idx + 1}!`, "🔓");
-                updateUI();
-                saveGame();
-            } else {
-                showToast("Thiếu Vàng! 🪙", "Bạn không đủ vàng để mở ô đất này.", "❌");
-            }
-        }
+        // Chạm một lần chỉ xem thông tin; không bật bảng nâng cấp hàng loạt.
+        if (typeof openLockedPlotInfo === 'function') openLockedPlotInfo(idx);
+        else showToast('Ô đất đang khóa', 'Chạm NPC bù nhìn để quản lý đất.', '🔒');
         return;
     }
 
@@ -138,13 +123,58 @@ function handlePlotClick(idx) {
     if (!plot) return;
 
     if (plot.isDead) {
+        if (gameState.currentTool === 'chop' && !confirm('🪓 Loại bỏ cây trồng đã chết khỏi ô đất này? Không hoàn lại hạt giống.')) return;
         if (checkAndDeductStamina(2)) {
             plot.cropId = null;
             plot.isDead = false;
             plot.hasPest = false;
+            plot.watered = false;
+            plot.reducedSecs = 0;
             updatePlotVisual(idx, true);
             showToast("Dọn Đất 🧹", "Đã dọn dẹp cây chết!", "🌱");
+            saveGame();
         }
+        return;
+    }
+
+    if (gameState.currentTool === 'chop') {
+        if (!plot.cropId) {
+            showToast('Ô đất trống', 'Chạm vào ô có cây trồng để loại bỏ cây.', '🌱');
+            return;
+        }
+        const crop = CROPS_DB[plot.cropId];
+        const cropName = crop ? crop.name : 'cây trồng';
+        if (!confirm(`🪓 Loại bỏ ${cropName} khỏi ô đất này? Cây sẽ mất và không hoàn lại hạt giống.`)) return;
+        if (!checkAndDeductStamina(2)) return;
+        const mesh = plotMeshes[idx];
+        const cropMesh = mesh && mesh.userData ? mesh.userData.cropMesh : null;
+        const finishRemoval = () => {
+            if (!plot.cropId) return;
+            plot.cropId = null;
+            plot.watered = false;
+            plot.reducedSecs = 0;
+            plot.hasPest = false;
+            plot.pestAppearedAt = 0;
+            plot.isDead = false;
+            plot.harvestCount = 0;
+            plot.regrowMax = 0;
+            updatePlotVisual(idx, true);
+            updateUI();
+            saveGame();
+            showToast('Đã loại bỏ cây 🪓', `${cropName} đã được dọn khỏi ô đất. Không hoàn lại hạt giống.`, '🧹');
+        };
+        if (cropMesh && typeof requestAnimationFrame === 'function') {
+            const started = performance.now();
+            const duration = 300;
+            const animateRemoval = now => {
+                const progress = Math.min(1, (now - started) / duration);
+                cropMesh.rotation.y += 0.12;
+                cropMesh.scale.setScalar(Math.max(0.02, 1 - progress));
+                if (progress < 1) requestAnimationFrame(animateRemoval);
+                else finishRemoval();
+            };
+            requestAnimationFrame(animateRemoval);
+        } else finishRemoval();
         return;
     }
 
@@ -170,14 +200,30 @@ function handlePlotClick(idx) {
 
             if (elapsed >= effTime) {
                 if (checkAndDeductStamina(2)) {
-                    gameState.inventory[crop.id] = (gameState.inventory[crop.id] || 0) + 1;
-                    addExp(crop.exp || 0);
+                    const plotLevel = Math.max(1, Math.min(5, Number(plot.plotLevel) || 1));
+                    const yieldAmount = plotLevel;
+                    gameState.inventory[crop.id] = (gameState.inventory[crop.id] || 0) + yieldAmount;
+                    addExp((crop.exp || 0) * yieldAmount);
                     trackQuestProgress('harvest_crop', crop.id);
-                    plot.cropId = null;
-                    plot.watered = false;
-                    plot.reducedSecs = 0;
-                    updatePlotVisual(idx, true);
-                    showToast("Thu Hoạch! 🌾", `Thu hoạch được 1 ${crop.name}!`, "🧺");
+                    const harvestCount = (Number(plot.harvestCount) || 0) + 1;
+                    const regrowMax = Number(plot.regrowMax || crop.regrowHarvests) || 0;
+                    if (regrowMax > 0 && harvestCount < regrowMax) {
+                        plot.harvestCount = harvestCount;
+                        plot.plantedAt = Date.now();
+                        plot.watered = false;
+                        plot.reducedSecs = 0;
+                        updatePlotVisual(idx, true);
+                        showToast('Thu Hoạch! 🌱', `Thu hoạch ${crop.name} x${yieldAmount} (ô đất cấp ${plotLevel}), đợt ${harvestCount}/${regrowMax}. Cây sẽ tiếp tục ra quả!`, '🧺');
+                    } else {
+                        plot.cropId = null;
+                        plot.watered = false;
+                        plot.reducedSecs = 0;
+                        plot.harvestCount = 0;
+                        plot.regrowMax = 0;
+                        updatePlotVisual(idx, true);
+                        showToast('Thu Hoạch! 🌾', `Thu hoạch được ${yieldAmount} ${crop.name} nhờ ô đất cấp ${plotLevel}! Cây đã hết đợt thu hoạch.`, '🧺');
+                    }
+                    saveGame();
                 }
             } else {
                 showToast("Cây Đang Phát Triển 🌱", `Cây chưa chín, hãy đợi chút nữa!`, "⏳");
@@ -189,9 +235,10 @@ function handlePlotClick(idx) {
         if (plot.cropId && !plot.watered) {
             if (checkAndDeductStamina(1)) {
                 plot.watered = true;
+                if (plotMeshes[idx] && plotMeshes[idx].material) plotMeshes[idx].material.color.setHex(0x6f8f86);
                 plot.reducedSecs = (plot.reducedSecs || 0) + 15;
                 trackQuestProgress('water');
-                showToast("Tưới Nước! 💧", "Đã tưới nước, rút ngắn 15s thời gian lớn!", "💧");
+                showToast("Tưới Nước! 💧", "Đất đổi sang màu xanh đậm để nhận biết, rút ngắn 15 giây thời gian lớn!", "💧");
                 updatePlotVisual(idx, true);
             }
         } else if (plot.watered) {
@@ -239,6 +286,8 @@ function plantSeed(cropKey) {
     if (!checkAndDeductStamina(1)) return;
 
     gameState.inventory[seedKey] -= 1;
+    if (!gameState.statistics || typeof gameState.statistics !== 'object') gameState.statistics = { animalsSold: 0, mealsCooked: 0, playTimeSeconds: 0, animalSicknessEvents: 0, cropsPlanted: 0 };
+    gameState.statistics.cropsPlanted = (Number(gameState.statistics.cropsPlanted) || 0) + 1;
     gameState.plots[selectedPlotIdx] = {
         cropId: cropKey,
         plantedAt: Date.now(),
@@ -247,194 +296,61 @@ function plantSeed(cropKey) {
         hasPest: false,
         pestAppearedAt: 0,
         pestImmune: false,
-        isDead: false
+        isDead: false,
+        harvestCount: 0,
+        regrowMax: Number(CROPS_DB[cropKey].regrowHarvests) || 0,
+        plotLevel: Math.max(1, Number((gameState.plots[selectedPlotIdx] || {}).plotLevel) || 1)
     };
     updatePlotVisual(selectedPlotIdx, true);
     closeModal('modal-seeds');
     showToast("Đã Trồng Cây! 🌱", `Gieo hạt ${CROPS_DB[cropKey].name} thành công!`, "✨");
+    saveGame();
 }
 
-// Xây dựng Khu vực Vườn Cây Ăn Quả
-function buildOrchardArea() {
-    orchardPlotMeshes = [];
-    const orchardPlots = Array.isArray(gameState.orchardPlots) ? gameState.orchardPlots : [];
-
-    for (let i = 0; i < 10; i++) {
-        const posX = 16 + (i % 2) * 3;
-        const posZ = -12 + Math.floor(i / 2) * 3.5;
-
-        const treeData = orchardPlots[i] || { unlocked: false, treeType: null, plantedAt: 0 };
-        const mesh = new THREE.Mesh(
-            new THREE.CylinderGeometry(1.2, 1.2, 0.2, 16),
-            new THREE.MeshStandardMaterial({ color: treeData.unlocked ? 0x854d0e : 0x334155 })
-        );
-        mesh.position.set(posX, 0.1, posZ);
-        mesh.receiveShadow = true;
-        mesh.userData = { type: 'orchard', index: i };
-        scene.add(mesh);
-        orchardPlotMeshes.push(mesh);
-        updateOrchardVisual(i);
-    }
-}
-
-// Cập nhật Render Cây ăn quả 3D
-function updateOrchardVisual(idx) {
-    const mesh = orchardPlotMeshes[idx];
-    if (!mesh) return;
-    const tree = gameState.orchardPlots[idx];
-    if (!tree) return;
-
-    if (mesh.userData.treeMesh) {
-        mesh.remove(mesh.userData.treeMesh);
-        mesh.userData.treeMesh = null;
-    }
-
-    if (tree.unlocked) {
-        if (tree.treeType) {
-            const treeInfo = TREES_DB[tree.treeType];
-            if (!treeInfo) return;
-            const elapsed = (Date.now() - tree.plantedAt) / 1000;
-            const ratio = Math.min(1.0, elapsed / treeInfo.harvestTime);
-
-            const group = new THREE.Group();
-            const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.3, 2.0), new THREE.MeshStandardMaterial({ color: 0x78350f }));
-            trunk.position.y = 1.0;
-            group.add(trunk);
-
-            const foliageScale = 0.5 + ratio * 0.7;
-            const leaves = new THREE.Mesh(new THREE.DodecahedronGeometry(1.2 * foliageScale), new THREE.MeshStandardMaterial({ color: 0x15803d }));
-            leaves.position.y = 2.4 * foliageScale;
-            group.add(leaves);
-
-            if (ratio >= 1.0) {
-                for (let f = 0; f < 5; f++) {
-                    const fruit = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 8), new THREE.MeshStandardMaterial({ color: 0xef4444 }));
-                    fruit.position.set(
-                        (Math.random() - 0.5) * 1.2,
-                        2.0 + Math.random() * 0.8,
-                        (Math.random() - 0.5) * 1.2
-                    );
-                    group.add(fruit);
-                }
-            }
-
-            mesh.add(group);
-            mesh.userData.treeMesh = group;
+// Nâng cấp ô đất: giá cao, yêu cầu cấp nhân vật và tăng sản lượng theo cấp ô.
+const PLOT_UPGRADE_COSTS = {2:10000,3:50000,4:150000,5:400000};
+const PLOT_UPGRADE_LEVELS = {2:5,3:12,4:22,5:35};
+function openPlotUpgradeModal() {
+    const modal = document.getElementById('modal-plot-upgrade'); const list = document.getElementById('plot-upgrade-list');
+    if (!modal || !list) return;
+    list.innerHTML = gameState.unlockedPlots.map((unlocked, idx) => {
+        const groupIndex = Math.floor(idx / 6);
+        const unlockReq = groupIndex * 10;
+        const unlockCost = 200 + idx * 50;
+        if (!unlocked) {
+            const canUnlock = gameState.level >= unlockReq && gameState.gold >= unlockCost;
+            return `<div class="rounded-xl border border-slate-200 bg-white p-3 flex items-center gap-2"><div class="flex-1"><b>🔒 Ô đất ${idx+1}</b><div class="text-[11px] text-slate-600">Mở ô đất · Cấp nhân vật ${unlockReq} · ${unlockCost.toLocaleString()} 🪙</div></div><button onclick="unlockPlotFromModal(${idx})" ${canUnlock?'':'disabled'} class="px-3 py-2 rounded-lg text-xs font-black ${canUnlock?'bg-amber-500 text-white':'bg-slate-200 text-slate-400'}">Mở ô</button></div>`;
         }
-    }
+        const plot = gameState.plots[idx] || {}; const lvl = Math.max(1, Number(plot.plotLevel) || 1); const next = lvl + 1;
+        if (lvl >= 5) return `<div class="rounded-xl border border-emerald-200 bg-emerald-50 p-3 flex items-center justify-between"><b>🌱 Ô ${idx+1} · Cấp 5</b><span class="text-xs font-black text-emerald-700">TỐI ĐA · x5 sản lượng</span></div>`;
+        const cost = PLOT_UPGRADE_COSTS[next]; const req = PLOT_UPGRADE_LEVELS[next]; const can = gameState.level >= req && gameState.gold >= cost;
+        return `<div class="rounded-xl border border-amber-200 bg-amber-50 p-3 flex items-center gap-2"><div class="flex-1"><b>🌱 Ô ${idx+1} · Cấp ${lvl} → ${next}</b><div class="text-[11px] text-slate-600">Sản lượng x${lvl} → x${next} · Cấp nhân vật ${req} · ${cost.toLocaleString()} 🪙</div></div><button onclick="upgradePlotLevel(${idx})" ${can?'':'disabled'} class="px-3 py-2 rounded-lg text-xs font-black ${can?'bg-emerald-600 text-white':'bg-slate-200 text-slate-400'}">Nâng</button></div>`;
+    }).join('');
+    openModal('modal-plot-upgrade');
 }
-
-// Click vào Cây ăn quả
-function handleOrchardClick(idx) {
-    if (!gameState.orchardPlots || !gameState.orchardPlots[idx]) return;
-    const tree = gameState.orchardPlots[idx];
-    const now = Date.now();
-
-    if (!tree.unlocked) {
-        const cost = 800;
-        if (confirm(`Bạn có muốn mở khóa vị trí trồng cây ăn quả số ${idx + 1} với giá ${cost} 🪙?`)) {
-            if ((gameState.gold || 0) >= cost) {
-                gameState.gold -= cost;
-                tree.unlocked = true;
-                orchardPlotMeshes[idx].material.color.setHex(0x854d0e);
-                showToast("Mở Khoá Cây Ăn Quả! 🌳", `Đã mở ô cây ăn quả ${idx + 1}!`, "🔓");
-                updateUI();
-                saveGame();
-            }
-        }
-        return;
-    }
-
-    if (!tree.treeType) {
-        openSaplingModal(idx);
-    } else {
-        const treeInfo = TREES_DB[tree.treeType];
-        if (!treeInfo) return;
-
-        const growTime = 900;
-        const cycleTime = 480;
-
-        const ageSecs = (now - tree.plantedAt) / 1000;
-        if (ageSecs < growTime) {
-            const remSecs = Math.ceil(growTime - ageSecs);
-            showToast("Cây Đang Lớn 🌳", `Cây cần thêm ${formatTime(remSecs)} để trưởng thành!`, "⏳");
-            return;
-        }
-
-        const lastHarvest = tree.lastHarvestAt || (tree.plantedAt + growTime * 1000);
-        const elapsed = (now - lastHarvest) / 1000;
-
-        if (elapsed >= cycleTime) {
-            if (checkAndDeductStamina(2)) {
-                tree.yieldCount = (tree.yieldCount || 0) + 1;
-                tree.lastHarvestAt = now;
-
-                gameState.inventory[tree.treeType] = (gameState.inventory[tree.treeType] || 0) + 3;
-                addExp(treeInfo.exp || 0);
-
-                if (tree.yieldCount >= 10) {
-                    tree.treeType = null;
-                    tree.yieldCount = 0;
-                    tree.lastHarvestAt = 0;
-                    gameState.inventory.wood = (gameState.inventory.wood || 0) + 5;
-                    showToast("Cây Già Cỗi! 🪵", `Đã thu hoạch lần cuối và đốn cây (+5 Gỗ Cây)!`, "🪵", 4000);
-                } else {
-                    showToast("Thu Hoạch Trái Cây! 🧺", `Thu được 3 Quả ${treeInfo.name} (${tree.yieldCount}/10 lần)!`, "🍎");
-                }
-
-                updateOrchardVisual(idx);
-                saveGame();
-            }
-        } else {
-            const remSecs = Math.ceil(cycleTime - elapsed);
-            showToast("Cây Đang Ra Trái 🍊", `Lần thu hoạch tiếp theo sau: ${formatTime(remSecs)}!`, "⏳");
-        }
-    }
+function unlockPlotFromModal(idx, showUpgradeAfter = true) {
+    if (gameState.unlockedPlots[idx]) return;
+    const req = Math.floor(idx / 6) * 10;
+    const cost = 200 + idx * 50;
+    if (gameState.level < req) { showToast('Chưa đủ cấp', `Cần cấp nhân vật ${req} để mở ô đất ${idx+1}.`, '🔒'); return; }
+    if (gameState.gold < cost) { showToast('Chưa đủ vàng', `Cần ${cost.toLocaleString()} vàng để mở ô đất.`, '🪙'); return; }
+    gameState.gold -= cost; gameState.unlockedPlots[idx] = true;
+    updatePlotVisual(idx, true); updatePlotColorsByLevel(); updateUI(); saveGame();
+    if (showUpgradeAfter) openPlotUpgradeModal();
+    showToast('Mở khóa ô đất', `Đã mở ô ${idx+1}.`, '🔓');
 }
-
-// Mở Modal trồng Cây Giống
-function openSaplingModal(idx) {
-    selectedPlotIdx = idx;
-    const list = document.getElementById('sapling-list');
-    if (!list) return;
-
-    let html = '';
-    Object.keys(TREES_DB || {}).forEach(key => {
-        const tree = TREES_DB[key];
-        const saplingKey = 'sapling_' + key;
-        const count = gameState.inventory[saplingKey] || 0;
-
-        html += `
-            <div class="bg-emerald-50 rounded-2xl p-3 border border-emerald-200 flex flex-col justify-between items-center text-center">
-                <div class="text-3xl mb-1">${tree.icon}</div>
-                <div class="font-black text-xs text-slate-800">${tree.name}</div>
-                <div class="text-[10px] text-slate-500 mb-2">Sở hữu: <b class="text-emerald-600">${count}</b></div>
-                <button onclick="plantSapling('${key}')" ${count <= 0 ? 'disabled' : ''} class="w-full py-1.5 ${count > 0 ? 'bg-emerald-500 hover:bg-emerald-600 text-white' : 'bg-slate-300 text-slate-500'} font-bold rounded-xl text-[10px]">
-                    Trồng Cây
-                </button>
-            </div>
-        `;
-    });
-
-    list.innerHTML = html;
-    openModal('modal-tree-saplings');
+function openLockedPlotInfo(idx) {
+    if (gameState.unlockedPlots[idx]) return;
+    const levelReq = Math.floor(idx / 6) * 10; const cost = 200 + idx * 50;
+    const status = Number(gameState.level) < levelReq ? `Cần cấp ${levelReq}` : (Number(gameState.gold) < cost ? 'Chưa đủ vàng' : 'Đến bù nhìn để mở khóa');
+    showToast(`🔒 Ô đất ${idx + 1}`, `Mở khóa: ${cost.toLocaleString()} 🪙 · Cấp ${levelReq}+ · ${status}`, '🌱', 3200);
 }
-
-// Trồng Cây Giống Ăn Quả
-function plantSapling(treeKey) {
-    if (selectedPlotIdx === null || selectedPlotIdx < 0 || selectedPlotIdx >= gameState.orchardPlots.length) return;
-    const saplingKey = 'sapling_' + treeKey;
-    if ((gameState.inventory[saplingKey] || 0) <= 0) {
-        showToast("Hết Cây Giống! 🌳", "Hãy ghé Cửa hàng mua cây giống!", "❌");
-        return;
-    }
-
-    if (!checkAndDeductStamina(2)) return;
-
-    gameState.inventory[saplingKey] -= 1;
-    gameState.orchardPlots[selectedPlotIdx].treeType = treeKey;
-    gameState.orchardPlots[selectedPlotIdx].plantedAt = Date.now();
-    updateOrchardVisual(selectedPlotIdx);
-    closeModal('modal-tree-saplings');
-    showToast("Trồng Cây Ăn Quả! 🌳", `Đã trồng ${TREES_DB[treeKey].name}!`, "✨");
+function upgradePlotLevel(idx) {
+    const plot = gameState.plots[idx]; if (!plot || !gameState.unlockedPlots[idx]) return;
+    const lvl = Math.max(1, Number(plot.plotLevel) || 1); const next = lvl + 1; if (next > 5) return;
+    const cost = PLOT_UPGRADE_COSTS[next], req = PLOT_UPGRADE_LEVELS[next];
+    if (gameState.level < req) { showToast('Chưa đủ cấp', `Cần cấp nhân vật ${req} để nâng ô đất lên cấp ${next}.`, '🔒'); return; }
+    if (gameState.gold < cost) { showToast('Chưa đủ vàng', `Cần ${cost.toLocaleString()} vàng.`, '🪙'); return; }
+    gameState.gold -= cost; plot.plotLevel = next; updateUI(); updatePlotVisual(idx, true); saveGame(); openPlotUpgradeModal();
+    showToast('Nâng cấp ô đất thành công', `Ô ${idx+1} lên cấp ${next}, sản lượng x${next}.`, '🌟');
 }

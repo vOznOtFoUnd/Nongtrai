@@ -1,15 +1,14 @@
 let stoveMeshes = [];
 
-// Xây dựng 4 Bếp Nấu Ăn 3D
+// Xây dựng tối đa 3 bếp nấu 3D
 function build4CookingStoves() {
     stoveMeshes.forEach(mesh => scene.remove(mesh));
     stoveMeshes = [];
     
     const positions = [
-        { x: -5, z: -20 },
-        { x: -1.8, z: -20 },
-        { x: 1.8, z: -20 },
-        { x: 5, z: -20 }
+        { x: -3.6, z: -20 },
+        { x: 0, z: -20 },
+        { x: 3.6, z: -20 }
     ];
 
     positions.forEach((p, idx) => {
