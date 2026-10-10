@@ -32,6 +32,7 @@ function applyOfflineProductionPenalty(creature, decay, offlineSeconds, offlineS
 function gameLogicLoop() {
     const now = Date.now();
     if (typeof updateKitchenQueueScheduler === 'function') updateKitchenQueueScheduler();
+    if (typeof updateAnimalPenActionCounters === 'function') updateAnimalPenActionCounters();
     if (!gameState.statistics || typeof gameState.statistics !== 'object') gameState.statistics = { animalsSold: 0, mealsCooked: 0, playTimeSeconds: 0, animalSicknessEvents: 0, cropsPlanted: 0 };
     gameState.statistics.playTimeSeconds = Math.max(0, Number(gameState.statistics.playTimeSeconds) || 0) + 1;
     if (typeof updateMarketReadyIndicator === 'function') updateMarketReadyIndicator();
@@ -175,6 +176,25 @@ function animate3D() {
     updatePondFishMovement();
     if (typeof updatePondDuckMovement === 'function') updatePondDuckMovement();
     if (typeof updateWorldRaceIdle === 'function') updateWorldRaceIdle();
+    // Hiệu ứng trang trí không được phép làm dừng render/camera nếu phát sinh lỗi.
+    if (typeof updateFarmWindEffects === 'function') {
+        try { updateFarmWindEffects(); }
+        catch (err) {
+            if (!window.__farmWindErrorLogged) {
+                window.__farmWindErrorLogged = true;
+                console.error('Farm wind effect paused after error:', err);
+            }
+        }
+    }
+    if (typeof updateChibiBirds === 'function') {
+        try { updateChibiBirds(); }
+        catch (err) {
+            if (!window.__chibiBirdErrorLogged) {
+                window.__chibiBirdErrorLogged = true;
+                console.error('Chibi bird animation paused after error:', err);
+            }
+        }
+    }
 
     // Hiệu ứng hạt thời tiết rơi (Mưa / Tuyết)
     if (weatherParticleSystem) {
@@ -313,7 +333,9 @@ function init3D() {
     init3DScene();
     buildFarmIslandBase();
     buildEnvironmentDecorations();
+    buildFarmWindEffects();
     buildMinigameMats();
+    buildChibiNatureDecorations();
     
     buildPlotsGrid();
     buildOrchardArea();
