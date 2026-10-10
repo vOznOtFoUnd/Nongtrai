@@ -19,6 +19,13 @@ body, html {
     top: 0;
     left: 0;
     z-index: 1;
+    touch-action: none;
+    overscroll-behavior: none;
+}
+#canvas-container canvas {
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
 }
 .ui-layer {
     position: absolute;
@@ -47,21 +54,62 @@ body, html {
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-thumb { background: rgba(156, 163, 175, 0.6); border-radius: 9999px; }
 
-/* Toast Animation */
+/* Toast Animation: top-center, compact, never competes with bottom controls. */
 @keyframes toast-in {
-    0% { transform: translateX(100%) scale(0.8); opacity: 0; }
-    100% { transform: translateX(0) scale(1); opacity: 1; }
+    0% { transform: translateY(-10px) scale(.94); opacity: 0; }
+    100% { transform: translateY(0) scale(1); opacity: 1; }
 }
 @keyframes toast-out {
-    0% { transform: translateX(0) scale(1); opacity: 1; }
-    100% { transform: translateX(100%) scale(0.8); opacity: 0; }
+    0% { transform: translateY(0) scale(1); opacity: 1; }
+    100% { transform: translateY(-8px) scale(.96); opacity: 0; }
 }
-.toast-item {
-    animation: toast-in 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+.toast-item { animation: toast-in .24s cubic-bezier(.175,.885,.32,1.275) forwards; width: 100%; }
+.toast-item.hiding { animation: toast-out .22s ease-in forwards; }
+
+/* UPGRADE 55: Interaction is a true fixed mini-toast; player card stays at the top. */
+.player-card-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    flex: 0 0 auto;
 }
-.toast-item.hiding {
-    animation: toast-out 0.3s ease-in forwards;
+.interaction-bar {
+    position: fixed;
+    top: calc(env(safe-area-inset-top) + 112px);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 42;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: max-content !important;
+    max-width: min(82vw, 360px);
+    height: auto !important;
+    min-height: 0 !important;
+    padding: 6px 11px;
+    border: 1px solid rgba(255,255,255,.88);
+    border-radius: 999px;
+    background: rgba(255,250,242,.96);
+    box-shadow: 0 7px 20px rgba(72,56,92,.14);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    pointer-events: auto;
+    cursor: pointer;
+    touch-action: manipulation;
+    white-space: nowrap;
+    box-sizing: border-box;
 }
+.interaction-bar.hidden { display: none !important; }
+.interaction-bar-icon {
+    width: 20px; height: 20px; flex: 0 0 20px;
+    display:flex; align-items:center; justify-content:center;
+    border-radius: 7px; background: #eef9f0; border: 1px solid #cfead7;
+    font-size: 12px;
+}
+.interaction-bar-name { font-size: 10px; font-weight: 900; color:#334155; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.interaction-bar:active { transform: translateX(-50%) scale(.97); }
 
 /* Floating HUD Badge Style */
 .hud-badge {
@@ -78,25 +126,256 @@ body, html {
 
 
 /* Safe-area and compact-screen support for phones with gesture bars/notches. */
-#entertainment-button {
-    right: max(0.75rem, env(safe-area-inset-right));
-    bottom: calc(7rem + env(safe-area-inset-bottom));
+/* UPGRADE 12: compact pastel chibi feedback; labels are rendered as world-space sprites. */
+.toast-item { border-radius: 22px !important; background: rgba(255,250,242,.96) !important; border-color: #f5c6d8 !important; box-shadow: 0 10px 28px rgba(112,91,135,.18) !important; }
+
+/* UPGRADE 48: mobile direct-control HUD */
+#direct-control-hud { pointer-events: none; }
+#direct-control-hud.hidden { display: none; }
+.direct-joystick-touch-zone {
+    position: absolute;
+    left: max(2px, calc(env(safe-area-inset-left) - 2px));
+    bottom: calc(2px + env(safe-area-inset-bottom));
+    width: 178px;
+    height: 178px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    touch-action: none;
+    pointer-events: auto;
 }
-#toast-container {
-    right: calc(0.5rem + env(safe-area-inset-right));
-    bottom: calc(7rem + env(safe-area-inset-bottom));
-    max-width: min(22rem, calc(100vw - 1rem));
+.direct-joystick-base {
+    position: relative;
+    width: 132px;
+    height: 132px;
+    border-radius: 50%;
+    background: rgba(15,23,42,.30);
+    border: 2px solid rgba(255,255,255,.42);
+    box-shadow: 0 8px 28px rgba(15,23,42,.28), inset 0 0 0 12px rgba(255,255,255,.06);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    touch-action: none;
+    pointer-events: none;
 }
-@media (min-width: 640px) {
-    #entertainment-button {
-        right: calc(1.25rem + env(safe-area-inset-right));
-        bottom: calc(1.25rem + env(safe-area-inset-bottom));
+.direct-joystick-stick {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 58px;
+    height: 58px;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255,255,255,.82);
+    color: #0f766e;
+    border: 2px solid rgba(255,255,255,.9);
+    box-shadow: 0 6px 18px rgba(15,23,42,.25);
+    font-weight: 900;
+    pointer-events: none;
+}
+.direct-camera-controls {
+    position: absolute;
+    right: max(18px, env(safe-area-inset-right));
+    bottom: calc(22px + env(safe-area-inset-bottom));
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 6px;
+    border-radius: 18px;
+    background: rgba(15,23,42,.48);
+    border: 1px solid rgba(255,255,255,.25);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    touch-action: none;
+}
+.direct-camera-controls button {
+    width: 42px;
+    height: 38px;
+    border: 0;
+    border-radius: 12px;
+    background: rgba(255,255,255,.88);
+    color: #0f172a;
+    font-weight: 900;
+    touch-action: manipulation;
+}
+.direct-camera-controls span { color: #fff; font-size: 10px; font-weight: 900; min-width: 30px; text-align: center; }
+@media (min-width: 900px) and (pointer: fine) {
+    .direct-joystick-touch-zone { display: none; }
+    .direct-camera-controls { right: 22px; bottom: 22px; }
+}
+@media (orientation: landscape) and (max-height: 560px) {
+    .direct-joystick-touch-zone { width: 158px; height: 158px; bottom: calc(4px + env(safe-area-inset-bottom)); }
+    .direct-joystick-base { width: 112px; height: 112px; }
+    .direct-joystick-stick { width: 50px; height: 50px; }
+    .direct-camera-controls { bottom: calc(14px + env(safe-area-inset-bottom)); }
+}
+
+/* UPGRADE 49: 3D world indicators replace screen-projected floating HUD. */
+#floating-hud-container { display: none !important; }
+
+/* UPGRADE 50: Farm phone lives inside the shared bottom action dock. */
+.farm-phone-dock-button {
+    position: relative;
+    flex: 0 0 auto;
+}
+.farm-phone-icon { line-height: 1; }
+.farm-phone-badge, .farm-phone-app-badge {
+    position: absolute;
+    min-width: 19px;
+    height: 19px;
+    padding: 0 4px;
+    border-radius: 999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #ef4444;
+    color: white;
+    border: 2px solid white;
+    font-size: 9px;
+    font-weight: 900;
+    line-height: 1;
+}
+.farm-phone-badge { top: -5px; right: -5px; }
+.farm-phone-app-badge { top: 10px; right: 10px; }
+.farm-phone-notify { animation: farm-phone-shake .55s ease-in-out, farm-phone-pulse 1.2s ease-out; }
+@keyframes farm-phone-shake { 0%,100%{transform:translateX(0) rotate(0)} 20%{transform:translateX(-3px) rotate(-4deg)} 40%{transform:translateX(3px) rotate(4deg)} 60%{transform:translateX(-2px) rotate(-2deg)} 80%{transform:translateX(1px) rotate(1deg)} }
+@keyframes farm-phone-pulse { 0%{box-shadow:0 0 0 0 rgba(239,68,68,.55)} 70%{box-shadow:0 0 0 14px rgba(239,68,68,0)} 100%{box-shadow:0 0 0 0 rgba(239,68,68,0)} }
+.farm-phone-window {
+    background: linear-gradient(145deg, rgba(255,255,255,.98), rgba(248,250,252,.98));
+    border: 1px solid rgba(255,255,255,.8);
+    max-height: min(760px, calc(100dvh - 20px));
+    overflow: hidden;
+}
+.farm-app-card { position: relative; min-height: 112px; border-radius: 22px; border: 1px solid rgba(148,163,184,.25); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:7px; font-size:12px; font-weight:900; box-shadow:0 8px 20px rgba(15,23,42,.08); }
+.farm-app-orders { background: linear-gradient(145deg,#fff7ed,#ffedd5); color:#9a3412; }
+.farm-app-games { background: linear-gradient(145deg,#faf5ff,#f3e8ff); color:#6b21a8; }
+.farm-app-quests { background: linear-gradient(145deg,#f5f3ff,#ede9fe); color:#5b21b6; }
+.farm-app-settings { background: linear-gradient(145deg,#f8fafc,#e2e8f0); color:#334155; }
+
+/* UPGRADE 50: Mobile-safe modal sizing. All management windows stay inside the viewport and keep their close button reachable. */
+@media (max-width: 899px) {
+    #modal-animal-pen > .glass-panel,
+    #modal-fish-select > .glass-panel,
+    #modal-shop > .glass-panel,
+    #modal-market > .glass-panel,
+    #modal-quests > .glass-panel,
+    #modal-kitchen > .glass-panel,
+    #modal-inventory > .glass-panel,
+    #modal-farm-phone > .farm-phone-window,
+    #modal-entertainment > .glass-panel,
+    #modal-plot-upgrade > .glass-panel,
+    #modal-settings > .glass-panel {
+        width: min(100%, 520px);
+        max-height: calc(100dvh - 16px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+        min-height: 0;
+        box-sizing: border-box;
     }
-    #toast-container {
-        right: calc(1.25rem + env(safe-area-inset-right));
-        bottom: calc(7rem + env(safe-area-inset-bottom));
+
+    #modal-animal-pen,
+    #modal-fish-select,
+    #modal-shop,
+    #modal-market,
+    #modal-quests,
+    #modal-kitchen,
+    #modal-inventory,
+    #modal-farm-phone,
+    #modal-entertainment,
+    #modal-plot-upgrade,
+    #modal-settings {
+        padding: max(8px, env(safe-area-inset-top)) 8px max(8px, env(safe-area-inset-bottom));
+    }
+
+    #modal-animal-pen > .glass-panel { padding: 12px; overflow-y: auto; }
+    #modal-animal-pen .grid button { min-height: 72px; padding: 8px; }
+    #modal-animal-pen .grid button span:first-child { font-size: 1.35rem; }
+
+    #modal-shop > .bg-white,
+    #modal-market > .glass-panel,
+    #modal-kitchen > .glass-panel,
+    #modal-inventory > .glass-panel {
+        max-height: calc(100dvh - 16px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    }
+
+    #modal-shop > .bg-white { height: auto; min-height: 0; overflow: hidden; }
+    #modal-shop > .bg-white > .p-3 { min-height: 0; }
+    #modal-shop > .bg-white > .p-3.bg-slate-100\/50 { min-height: 0; overflow-y: auto; }
+    #modal-shop-items-container, #shop-items-container { min-height: 0; }
+
+    #modal-market > .glass-panel,
+    #modal-quests > .glass-panel,
+    #modal-kitchen > .glass-panel,
+    #modal-inventory > .glass-panel,
+    #modal-settings > .glass-panel,
+    #modal-plot-upgrade > .glass-panel {
+        overflow: hidden;
+    }
+
+    #modal-market #market-orders-container,
+    #modal-quests #quests-container,
+    #modal-kitchen #kitchen-recipes-container,
+    #modal-inventory #inventory-container,
+    #modal-plot-upgrade #plot-upgrade-list {
+        min-height: 0;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    #modal-farm-phone { align-items: flex-end; }
+    #modal-farm-phone > .farm-phone-window {
+        width: min(100%, 430px);
+        max-height: calc(100dvh - 8px - env(safe-area-inset-bottom));
+        padding: 14px;
+        border-radius: 24px 24px 16px 16px;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    #modal-farm-phone .farm-app-card { min-height: 88px; }
+}
+
+.farm-phone-statusbar {
+    letter-spacing: .02em;
+}
+.farm-phone-home-indicator {
+    width: 84px;
+    height: 4px;
+    border-radius: 999px;
+    background: #cbd5e1;
+    margin: 14px auto 0;
+}
+
+
+@media (max-width: 420px) {
+    #modal-shop > .bg-white { width: 100%; border-radius: 22px; }
+    #modal-shop .p-3\.5 { padding: 10px; }
+    #modal-shop .grid-cols-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    #modal-shop .grid-cols-1.sm\:grid-cols-2 { grid-template-columns: 1fr; }
+    #modal-market > .glass-panel, #modal-quests > .glass-panel { padding: 12px; border-radius: 22px; }
+    #modal-market .text-lg, #modal-quests .text-lg { font-size: 1rem; }
+}
+
+@media (orientation: landscape) and (max-height: 560px) {
+    #farm-phone-button { min-width: 40px; }
+    #modal-animal-pen > .glass-panel,
+    #modal-fish-select > .glass-panel,
+    #modal-shop > .bg-white,
+    #modal-market > .glass-panel,
+    #modal-quests > .glass-panel,
+    #modal-kitchen > .glass-panel,
+    #modal-inventory > .glass-panel,
+    #modal-farm-phone > .farm-phone-window,
+    #modal-settings > .glass-panel {
+        max-height: calc(100dvh - 8px);
     }
 }
 
-/* UPGRADE 12: compact pastel chibi feedback; labels are rendered as world-space sprites. */
-.toast-item { border-radius: 22px !important; background: rgba(255,250,242,.96) !important; border-color: #f5c6d8 !important; box-shadow: 0 10px 28px rgba(112,91,135,.18) !important; }
+
+/* UPGRADE 51 / PHASE C1: right-side camera drag */
+@media (max-width: 640px) {
+    .interaction-bar { top: calc(env(safe-area-inset-top) + 112px); max-width: 82vw; padding: 5px 9px; }
+    .interaction-bar-icon { width:19px; height:19px; flex-basis:19px; font-size:11px; border-radius:6px; }
+    .interaction-bar-name { font-size:9px; }
+    .camera-mode-toggle { padding: 5px 8px; font-size:8px; }
+}
