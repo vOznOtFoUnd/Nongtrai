@@ -1,5 +1,6 @@
 // Nhà bếp chibi: tối đa 3 bếp, mỗi bếp có 1 món đang nấu + tối đa 3 món chờ.
 const KITCHEN_QUEUE_LIMIT = 3;
+const kitchenReadyNotified = new Map();
 
 function kitchenHasIngredients(recipe) {
     if (!recipe || !recipe.ingredients) return false;
@@ -36,7 +37,18 @@ function updateKitchenQueueScheduler() {
     if (!gameState || !Array.isArray(gameState.kitchenStoves)) return false;
     let changed = false;
     gameState.kitchenStoves.slice(0, 3).forEach(stove => {
-        if (!stove || !stove.unlocked || stove.cooking || !Array.isArray(stove.queue) || stove.queue.length === 0) return;
+        if (!stove) return;
+        if (stove.cooking) {
+            const ready = (Date.now() - Number(stove.startTime || 0)) / 1000 >= Math.max(0, Number(stove.duration) || 0);
+            const jobKey = `${Number(stove.startTime) || 0}|${stove.recipeId || ''}`;
+            if (ready && kitchenReadyNotified.get(stove.id) !== jobKey) {
+                kitchenReadyNotified.set(stove.id, jobKey);
+                if (typeof playFarmSound === 'function') playFarmSound('kitchen-done');
+            }
+        } else {
+            kitchenReadyNotified.delete(stove.id);
+        }
+        if (!stove.unlocked || stove.cooking || !Array.isArray(stove.queue) || stove.queue.length === 0) return;
         const nextJob = stove.queue[0];
         const recipe = nextJob && RECIPES_DB[nextJob.recipeId];
         if (!recipe || !kitchenHasIngredients(recipe)) return;
@@ -95,16 +107,23 @@ function renderKitchenStoves() {
         ${stove.queue.length ? stove.queue.map((job, i) => { const r = RECIPES_DB[job.recipeId]; const missing = r ? kitchenMissingIngredients(r) : []; return `<div class="flex items-center gap-2 py-2 ${i ? 'border-t border-orange-100' : ''}"><span class="text-2xl">${r ? r.icon : '🍲'}</span><div class="flex-1 min-w-0"><div class="font-bold text-xs text-slate-800 truncate">${r ? r.name : 'Công thức không hợp lệ'}</div><div class="text-[10px] ${missing.length ? 'text-rose-600' : 'text-slate-500'}">${missing.length ? `Chờ nguyên liệu: ${missing.join(', ')}` : 'Chưa trừ nguyên liệu · sẽ trừ khi bắt đầu nấu'}</div></div><button onclick="removeQueuedRecipe(${stove.id}, ${i})" class="px-2.5 py-1.5 rounded-lg bg-rose-50 text-rose-600 border border-rose-100 text-[10px] font-black">Bỏ</button></div>`; }).join('') : '<div class="text-[11px] text-slate-500 py-2">Chưa có món chờ. Mỗi bếp xếp tối đa 3 món.</div>'}
     </section>`;
 
-    const recipesHtml = (Array.isArray(gameState.unlockedRecipes) ? gameState.unlockedRecipes : []).map(key => {
-        const recipe = RECIPES_DB[key];
-        if (!recipe) return '';
+    // Stable sort: công thức đủ nguyên liệu luôn nằm trên, giữ thứ tự gốc trong mỗi nhóm.
+    const sortedRecipeKeys = (Array.isArray(gameState.unlockedRecipes) ? gameState.unlockedRecipes : [])
+        .map((key, originalIndex) => ({ key, originalIndex, recipe: RECIPES_DB[key] }))
+        .filter(entry => !!entry.recipe)
+        .sort((a, b) => {
+            const aMissing = kitchenMissingIngredients(a.recipe).length > 0 ? 1 : 0;
+            const bMissing = kitchenMissingIngredients(b.recipe).length > 0 ? 1 : 0;
+            return aMissing - bMissing || a.originalIndex - b.originalIndex;
+        });
+    const recipesHtml = sortedRecipeKeys.map(({ key, recipe }) => {
         const missing = kitchenMissingIngredients(recipe);
         const hasRoom = stove.queue.length < KITCHEN_QUEUE_LIMIT;
         const buttonDisabled = !stove.unlocked || !hasRoom;
         const ingredientText = Object.entries(recipe.ingredients || {}).map(([id, qty]) => `${getItemInfo(id).name} ${Number(gameState.inventory[id]) || 0}/${qty}`).join(' · ');
         return `<article class="${recipe.isFeed ? 'bg-amber-50 border-amber-200' : 'bg-white/90 border-orange-100'} rounded-2xl p-3 border shadow-sm flex items-center gap-3">
             <div class="w-12 h-12 rounded-2xl bg-orange-50 border border-orange-100 flex items-center justify-center text-3xl shrink-0">${recipe.icon}</div>
-            <div class="flex-1 min-w-0"><div class="font-black text-xs text-slate-800">${recipe.name}</div><div class="text-[10px] text-slate-500 mt-1 leading-relaxed">${ingredientText}</div><div class="text-[10px] ${missing.length ? 'text-rose-500' : 'text-emerald-700'} mt-1">${missing.length ? `Thiếu hiện tại: ${missing.map(x => x.replace(' cần ', ' ')).join(', ')}` : `⏱ ${formatTime(Number(recipe.cookTime) || 0)} · đủ nguyên liệu`}</div></div>
+            <div class="flex-1 min-w-0"><div class="font-black text-xs text-slate-800">${recipe.name}</div><div class="text-[10px] text-slate-500 mt-1 leading-relaxed">${ingredientText}</div><div class="text-[10px] ${missing.length ? 'text-rose-500' : 'text-emerald-700'} mt-1">${missing.length ? `❗ Thiếu hiện tại: ${missing.map(x => x.replace(' cần ', ' ')).join(', ')}` : `⏱ ${formatTime(Number(recipe.cookTime) || 0)} · đủ nguyên liệu`}</div></div>
             <button onclick="cookRecipe('${key}')" ${buttonDisabled ? 'disabled' : ''} class="shrink-0 px-3 py-2 rounded-xl text-[11px] font-black shadow-sm ${buttonDisabled ? 'bg-stone-100 text-stone-400' : 'bg-orange-400 hover:bg-orange-500 text-white'}">${hasRoom ? 'Xếp món' : 'Đầy hàng'}</button>
         </article>`;
     }).join('');
@@ -156,6 +175,7 @@ function cookRecipe(recipeKey) {
     stove.queue.push({ recipeId: recipeKey, queuedAt: Date.now() });
     updateKitchenQueueScheduler();
     const startedThisJob = stove.cooking && stove.recipeId === recipeKey && Number(stove.startTime) !== previousStartTime;
+    if (startedThisJob && typeof playFarmSound === 'function') playFarmSound('cook');
     if (startedThisJob) showToast('Bắt đầu nấu! 🍲', `Đang nấu ${recipe.name}. Nguyên liệu đã được trừ.`, '🔥');
     else showToast('Đã xếp vào hàng chờ! 🧺', `${recipe.name} sẽ bắt đầu khi bếp trống và đủ nguyên liệu.`, '✨');
     renderKitchenStoves();

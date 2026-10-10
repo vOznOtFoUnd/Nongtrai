@@ -116,7 +116,22 @@ function updateFloatingHUD() {
     if (typeof stoveMeshes !== 'undefined') {
         stoveMeshes.forEach((group, i) => {
             const stove = gameState.kitchenStoves[i];
-            if (!stove || !stove.unlocked || !stove.cooking) return;
+            if (!stove || !stove.unlocked) {
+                if (group.userData && group.userData.warningSprite) group.userData.warningSprite.visible = false;
+                return;
+            }
+
+            // Dấu ! chỉ gắn trên mô hình bếp (không thêm cảnh báo vào Floating HUD).
+            // Hàng chờ chưa tiêu hao nguyên liệu; cảnh báo khi có món chờ chưa đủ nguyên liệu.
+            const hasBlockedQueuedRecipe = Array.isArray(stove.queue) && stove.queue.some(job => {
+                const queuedRecipe = job && RECIPES_DB[job.recipeId];
+                if (!queuedRecipe || !queuedRecipe.ingredients) return false;
+                return Object.entries(queuedRecipe.ingredients).some(([itemKey, required]) =>
+                    (Number(gameState.inventory[itemKey]) || 0) < Number(required)
+                );
+            });
+            if (group.userData && group.userData.warningSprite) group.userData.warningSprite.visible = hasBlockedQueuedRecipe;
+            if (!stove.cooking) return;
 
             group.getWorldPosition(tempV);
             tempV.y += 1.6;

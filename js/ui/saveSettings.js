@@ -2,8 +2,15 @@
 function openSettings() {
   const name = document.getElementById('setting-player-name');
   const sound = document.getElementById('setting-sound');
+  const music = document.getElementById('setting-music');
   if (name) name.value = gameState.playerName || 'Chibi Farmer';
   if (sound) sound.checked = !gameState.settings || gameState.settings.sound !== false;
+  if (music) music.checked = !!(gameState.settings && gameState.settings.music === true);
+  const soundVolume = document.getElementById('setting-sound-volume');
+  const musicVolume = document.getElementById('setting-music-volume');
+  if (soundVolume) soundVolume.value = Math.round(Math.max(0, Math.min(1, Number((gameState.settings && gameState.settings.soundVolume) ?? 0.65)) * 100));
+  if (musicVolume) musicVolume.value = Math.round(Math.max(0, Math.min(1, Number((gameState.settings && gameState.settings.musicVolume) ?? 0.3)) * 100));
+  updateAudioVolumeLabels();
   openModal('modal-settings');
 }
 function savePlayerName() {
@@ -14,35 +21,41 @@ function savePlayerName() {
   const display = document.getElementById('player-name-display'); if (display) display.textContent = name; const profileName = document.getElementById('profile-player-name'); if (profileName) profileName.textContent = name;
   saveGame(); showToast('Đã đổi tên', `Nhân vật hiện là ${name}.`, '🧑‍🌾');
 }
+function updateAudioVolumeLabels() {
+  const sound = document.getElementById('setting-sound-volume');
+  const music = document.getElementById('setting-music-volume');
+  const soundLabel = document.getElementById('setting-sound-volume-label');
+  const musicLabel = document.getElementById('setting-music-volume-label');
+  if (soundLabel && sound) soundLabel.textContent = `${sound.value}%`;
+  if (musicLabel && music) musicLabel.textContent = `${music.value}%`;
+}
+function previewAudioVolume(which, value) {
+  if (!gameState.settings || typeof gameState.settings !== 'object') gameState.settings = { sound: true, music: false, soundVolume: 0.65, musicVolume: 0.3 };
+  const level = Math.max(0, Math.min(100, Number(value) || 0)) / 100;
+  if (which === 'music') gameState.settings.musicVolume = level;
+  else gameState.settings.soundVolume = level;
+  updateAudioVolumeLabels();
+  if (typeof updateFarmAudioVolumes === 'function') updateFarmAudioVolumes();
+  if (which === 'music' && gameState.settings.music && typeof updateFarmMusic === 'function') updateFarmMusic();
+}
 function saveAudioSettings() {
-  if (!gameState.settings) gameState.settings = { sound: true, music: false };
+  if (!gameState.settings || typeof gameState.settings !== 'object') gameState.settings = { sound: true, music: false, soundVolume: 0.65, musicVolume: 0.3 };
   gameState.settings.sound = !!document.getElementById('setting-sound')?.checked;
-  // Giữ trường music cũ để tương thích save, nhưng không hiển thị tùy chọn nhạc khi chưa có nhạc nền.
-  gameState.settings.music = false;
+  gameState.settings.music = !!document.getElementById('setting-music')?.checked;
+  const soundVolume = document.getElementById('setting-sound-volume');
+  const musicVolume = document.getElementById('setting-music-volume');
+  if (soundVolume) gameState.settings.soundVolume = Math.max(0, Math.min(100, Number(soundVolume.value) || 0)) / 100;
+  if (musicVolume) gameState.settings.musicVolume = Math.max(0, Math.min(100, Number(musicVolume.value) || 0)) / 100;
+  updateAudioVolumeLabels();
+  if (typeof updateFarmAudioVolumes === 'function') updateFarmAudioVolumes();
+  if (typeof updateFarmMusic === 'function') updateFarmMusic();
   saveGame();
   if (gameState.settings.sound) playUiSound('confirm');
-  showToast('Đã lưu cài đặt', 'Hiệu ứng giao diện đã được cập nhật.', '🔊');
+  showToast('Đã lưu cài đặt âm thanh', `Hiệu ứng ${gameState.settings.sound ? 'bật' : 'tắt'} · Nhạc nền ${gameState.settings.music ? 'bật' : 'tắt'}.`, '🔊');
 }
 let uiAudioContext = null;
 function playUiSound(kind = 'tap') {
-  if (!gameState?.settings || gameState.settings.sound === false) return;
-  try {
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    if (!AudioCtx) return;
-    if (!uiAudioContext) uiAudioContext = new AudioCtx();
-    if (uiAudioContext.state === 'suspended') uiAudioContext.resume().catch(() => {});
-    const osc = uiAudioContext.createOscillator();
-    const gain = uiAudioContext.createGain();
-    const now = uiAudioContext.currentTime;
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(kind === 'confirm' ? 660 : 520, now);
-    osc.frequency.exponentialRampToValueAtTime(kind === 'confirm' ? 880 : 390, now + 0.07);
-    gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(0.045, now + 0.012);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.09);
-    osc.connect(gain); gain.connect(uiAudioContext.destination);
-    osc.start(now); osc.stop(now + 0.1);
-  } catch (_) { /* Audio is optional; it must never block gameplay. */ }
+  if (typeof playFarmSound === 'function') playFarmSound(kind === 'confirm' ? 'confirm' : 'ui');
 }
 function exportFarmSave() {
   saveGame();

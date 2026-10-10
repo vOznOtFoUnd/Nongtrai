@@ -267,6 +267,7 @@ function buyItem(itemKey) {
     }
     gameState.gold -= totalPrice;
     gameState.inventory[itemKey] = (Number(gameState.inventory[itemKey]) || 0) + qty;
+    if (typeof playFarmSound === 'function') playFarmSound('buy');
     showToast('Mua Thành Công! 🛒', `Đã mua ${qty} ${info.name}!`, '🪙');
     updateUI();
     renderShopItems();
@@ -292,6 +293,7 @@ function buyRecipe(recipeKey) {
     }
     gameState.gold -= cost;
     gameState.unlockedRecipes.push(recipeKey);
+    if (typeof playFarmSound === 'function') playFarmSound('buy');
     showToast('Đã Học Công Thức! 📜', `Bạn đã mở khóa món ăn "${recipe.name}"!`, '🎉');
     updateUI();
     renderShopItems();
