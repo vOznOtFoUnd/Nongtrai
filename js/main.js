@@ -166,22 +166,36 @@ function gameLogicLoop() {
     }
 }
 
-// RENDER LOOP 3D (60 FPS)
-function animate3D() {
+// RENDER LOOP 3D: render stays at display refresh, non-critical simulation/UI ticks are throttled.
+let lastNonCriticalTick = 0;
+let lastWeatherTick = 0;
+let lastAnimationFrameTime = 0;
+function animate3D(now = performance.now()) {
     requestAnimationFrame(animate3D);
-    if (controls) controls.update();
+    const delta = lastAnimationFrameTime > 0
+        ? Math.min(0.05, Math.max(0, (now - lastAnimationFrameTime) / 1000))
+        : 1 / 60;
+    lastAnimationFrameTime = now;
+
+    if (controls && getControlMode() !== 'direct') controls.update();
 
     if (camera && camera.position.y < 0.5) {
         camera.position.y = 0.5;
     }
 
-    updatePlayerMovement();
-    updateAnimalMovement();
-    updatePondFishMovement();
-    if (typeof updatePondDuckMovement === 'function') updatePondDuckMovement();
-    if (typeof updateWorldRaceIdle === 'function') updateWorldRaceIdle();
-    // Hiệu ứng trang trí không được phép làm dừng render/camera nếu phát sinh lỗi.
-    if (typeof updateFarmWindEffects === 'function') {
+    updatePlayerMovement(delta);
+    // Direct camera is independent of movement and remains smooth while idle.
+    if (getControlMode() === 'direct' && typeof applyCameraFollow === 'function') {
+        applyCameraFollow(false, now);
+    }
+    if (now - lastNonCriticalTick >= 33) {
+        lastNonCriticalTick = now;
+        updateAnimalMovement();
+        updatePondFishMovement();
+        if (typeof updatePondDuckMovement === 'function') updatePondDuckMovement();
+        if (typeof updateWorldRaceIdle === 'function') updateWorldRaceIdle();
+        // Hiệu ứng trang trí không được phép làm dừng render/camera nếu phát sinh lỗi.
+        if (typeof updateFarmWindEffects === 'function') {
         try { updateFarmWindEffects(); }
         catch (err) {
             if (!window.__farmWindErrorLogged) {
@@ -190,18 +204,20 @@ function animate3D() {
             }
         }
     }
-    if (typeof updateChibiBirds === 'function') {
-        try { updateChibiBirds(); }
-        catch (err) {
-            if (!window.__chibiBirdErrorLogged) {
-                window.__chibiBirdErrorLogged = true;
-                console.error('Chibi bird animation paused after error:', err);
+        if (typeof updateChibiBirds === 'function') {
+            try { updateChibiBirds(); }
+            catch (err) {
+                if (!window.__chibiBirdErrorLogged) {
+                    window.__chibiBirdErrorLogged = true;
+                    console.error('Chibi bird animation paused after error:', err);
+                }
             }
         }
     }
 
     // Hiệu ứng hạt thời tiết rơi (Mưa / Tuyết)
-    if (weatherParticleSystem) {
+    if (weatherParticleSystem && now - lastWeatherTick >= 33) {
+        lastWeatherTick = now;
         const positions = weatherParticleSystem.geometry.attributes.position.array;
         const type = weatherParticleSystem.userData.type;
         for (let i = 1; i < positions.length; i += 3) {
@@ -211,7 +227,7 @@ function animate3D() {
         weatherParticleSystem.geometry.attributes.position.needsUpdate = true;
     }
 
-    updateFloatingHUD();
+    if (typeof updateFloatingHUDThrottled === 'function') updateFloatingHUDThrottled(now);
 
     if (renderer && scene && camera) {
         renderer.render(scene, camera);
@@ -336,6 +352,7 @@ function init3D() {
 
     init3DScene();
     buildFarmIslandBase();
+    if (typeof buildChibiGroundDetails === 'function') buildChibiGroundDetails();
     buildEnvironmentDecorations();
     buildFarmWindEffects();
     buildMinigameMats();
