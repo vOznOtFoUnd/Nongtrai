@@ -59,6 +59,33 @@ function updatePlotColorsByLevel() {
     });
 }
 
+// Trả về bậc hình ảnh ổn định theo tiến trình sinh trưởng. Các ngưỡng bao phủ
+// cả mốc ra quả riêng của từng cây và mốc trưởng thành của lúa.
+function getCropVisualStage(plot, now = Date.now()) {
+    if (!plot || !plot.cropId || plot.isDead) return -1;
+    const crop = CROPS_DB && CROPS_DB[plot.cropId];
+    if (!crop) return -1;
+    const growTime = Math.max(1, Number(crop.growTime) || 1);
+    const effTime = Math.max(1, growTime - Math.max(0, Number(plot.reducedSecs) || 0));
+    const plantedAt = Math.max(0, Number(plot.plantedAt) || 0);
+    const ratio = plantedAt > 0 ? Math.max(0, Math.min(1, (now - plantedAt) / 1000 / effTime)) : 0;
+    const thresholds = [0.2, 0.45, 0.55, 0.6, 0.65, 0.82, 1];
+    return thresholds.reduce((stage, threshold) => stage + (ratio >= threshold ? 1 : 0), 0);
+}
+
+// Chỉ dựng lại model khi cây vượt một ngưỡng hình ảnh, không dựng mỗi frame.
+function updateGrowingCropVisuals(now = Date.now()) {
+    if (!Array.isArray(gameState.plots) || !Array.isArray(plotMeshes)) return;
+    const count = Math.min(gameState.plots.length, plotMeshes.length);
+    for (let idx = 0; idx < count; idx++) {
+        const plot = gameState.plots[idx];
+        const mesh = plotMeshes[idx];
+        if (!plot || !mesh || !plot.cropId) continue;
+        const stage = getCropVisualStage(plot, now);
+        if (!mesh.userData || mesh.userData.cropVisualStage !== stage) updatePlotVisual(idx, true);
+    }
+}
+
 // Cập nhật hình ảnh Cây trồng trên ô đất 3D
 function updatePlotVisual(idx, fullRebuild = false) {
     const mesh = plotMeshes[idx];
@@ -72,6 +99,7 @@ function updatePlotVisual(idx, fullRebuild = false) {
         mesh.remove(mesh.userData.cropMesh);
         mesh.userData.cropMesh = null;
     }
+    mesh.userData.cropVisualStage = getCropVisualStage(plot);
 
     if (gameState.unlockedPlots[idx] && plot.cropId) {
         const group = new THREE.Group();
@@ -85,15 +113,16 @@ function updatePlotVisual(idx, fullRebuild = false) {
             stem.rotation.z = 0.4;
             group.add(stem);
         } else {
-            const effTime = crop.growTime - (plot.reducedSecs || 0);
-            const elapsed = (Date.now() - plot.plantedAt) / 1000;
-            const ratio = Math.min(1.0, elapsed / effTime);
+            const effTime = Math.max(1, (Number(crop.growTime) || 1) - Math.max(0, Number(plot.reducedSecs) || 0));
+            const elapsed = Math.max(0, (Date.now() - (Number(plot.plantedAt) || Date.now())) / 1000);
+            const ratio = Math.max(0, Math.min(1.0, elapsed / effTime));
 
             // UPGRADE 37: crop-specific silhouettes, grounded to the top of the soil tile.
             // The crop group origin is the soil surface (plot mesh top = y 0.2).
             const cropKey = String(plot.cropId || '').toLowerCase();
             const mature = ratio >= 0.82;
-            const growth = 0.92 + Math.min(1, ratio) * 0.62;
+            // Cây non bắt đầu nhỏ, tăng dần đến kích thước trưởng thành.
+            const growth = 0.55 + Math.min(1, ratio) * 0.99;
             const leafMat = new THREE.MeshStandardMaterial({ color: mature ? 0x4b9a36 : 0x67ad43, roughness: 0.84 });
             const darkLeafMat = new THREE.MeshStandardMaterial({ color: 0x286d32, roughness: 0.88 });
             const stemMat = new THREE.MeshStandardMaterial({ color: 0x397d36, roughness: 0.86 });
