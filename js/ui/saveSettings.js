@@ -11,6 +11,12 @@ function openSettings() {
   if (soundVolume) soundVolume.value = Math.round(Math.max(0, Math.min(1, Number((gameState.settings && gameState.settings.soundVolume) ?? 0.65)) * 100));
   if (musicVolume) musicVolume.value = Math.round(Math.max(0, Math.min(1, Number((gameState.settings && gameState.settings.musicVolume) ?? 0.3)) * 100));
   updateAudioVolumeLabels();
+  const control = document.getElementById('setting-control-mode');
+  if (control) control.value = (gameState.settings && gameState.settings.controlMode === 'direct') ? 'direct' : 'click';
+  if (typeof updateControlModeUI === 'function') updateControlModeUI();
+  if (typeof updateCameraAngleUI === 'function') updateCameraAngleUI();
+  const cameraMode = document.getElementById('setting-camera-mode');
+  if (cameraMode) cameraMode.value = (gameState.settings && gameState.settings.cameraMode === 'topdown') ? 'topdown' : 'thirdPerson';
   openModal('modal-settings');
 }
 function savePlayerName() {
@@ -100,3 +106,53 @@ function startNewFarm() {
     playUiSound(target.id === 'locked-plot-unlock-button' ? 'confirm' : 'tap');
   }, { capture: true, passive: true });
 })();
+
+
+function saveControlSettings() {
+  if (!gameState.settings || typeof gameState.settings !== 'object') gameState.settings = {};
+  const control = document.getElementById('setting-control-mode');
+  gameState.settings.controlMode = control && control.value === 'direct' ? 'direct' : 'click';
+  if (typeof setPlayerControlMode === 'function') setPlayerControlMode(gameState.settings.controlMode);
+  saveGame();
+  showToast('Đã đổi kiểu điều khiển', gameState.settings.controlMode === 'direct' ? 'Joystick / WASD đã bật.' : 'Đã quay về chạm để di chuyển.', '🎮');
+}
+
+
+function saveCameraModeSetting() {
+  if (!gameState.settings || typeof gameState.settings !== 'object') gameState.settings = {};
+  const select = document.getElementById('setting-camera-mode');
+  const mode = select && select.value === 'topdown' ? 'topdown' : 'thirdPerson';
+  if (typeof setCameraMode === 'function') setCameraMode(mode, true);
+  else gameState.settings.cameraMode = mode;
+  saveGame();
+}
+
+function saveCameraAngleSetting(delta) {
+  if (!gameState.settings || typeof gameState.settings !== 'object') gameState.settings = {};
+  const current = Math.max(1, Math.min(5, Math.floor(Number(gameState.settings.cameraAngle) || 3)));
+  gameState.settings.cameraAngle = Math.max(1, Math.min(5, current + delta));
+  if (typeof setCameraAngleLevel === 'function') setCameraAngleLevel(gameState.settings.cameraAngle);
+  if (typeof updateCameraAngleUI === 'function') updateCameraAngleUI();
+  saveGame();
+}
+
+function requestLandscapeFullscreen() {
+  const target = document.documentElement;
+  const request = target.requestFullscreen || target.webkitRequestFullscreen;
+  const go = () => {
+    try {
+      if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(() => {});
+    } catch (_) {}
+  };
+  if (document.fullscreenElement) { go(); return; }
+  if (request) {
+    try {
+      const result = request.call(target);
+      if (result && typeof result.then === 'function') result.then(go).catch(() => {});
+      else go();
+    } catch (_) { go(); }
+  } else {
+    go();
+    showToast('Toàn màn hình', 'Thiết bị/trình duyệt hiện không hỗ trợ khóa ngang tự động.', '📱');
+  }
+}

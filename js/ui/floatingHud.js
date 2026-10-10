@@ -1,359 +1,193 @@
-// Floating HUD UI Manager
-let tempV = new THREE.Vector3();
+// World-state indicators: use the same 3D Sprite pattern as the kitchen warning icon.
+// The old HTML screen-projected HUD is intentionally removed to prevent mobile overlap.
+const worldIndicatorCache = new WeakMap();
+const worldIndicatorTextureCache = new Map();
 
-// Chuyển đổi tọa độ 3D World sang 2D Screen
-function getScreenCoords(position) {
-    if (!camera || !renderer) return null;
-    const pos = position.clone();
-    pos.project(camera);
-
-    // Kiểm tra nếu vật thể nằm phía sau camera
-    if (pos.z > 1) return null;
-
-    const widthHalf = window.innerWidth / 2;
-    const heightHalf = window.innerHeight / 2;
-
-    return {
-        x: (pos.x * widthHalf) + widthHalf,
-        y: -(pos.y * heightHalf) + heightHalf
+function createWorldIndicatorTexture(kind = 'attention') {
+    const canvas = document.createElement('canvas');
+    canvas.width = 128; canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    const palette = {
+        ready: '#10b981',
+        attention: '#ef4444',
+        hungry: '#f59e0b',
+        sick: '#ef4444',
+        pest: '#8b5cf6',
+        dead: '#64748b',
+        info: '#0ea5e9'
     };
+    const color = palette[kind] || palette.attention;
+    ctx.clearRect(0, 0, 128, 128);
+    ctx.fillStyle = color;
+    ctx.beginPath(); ctx.arc(64, 64, 55, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 7; ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 88px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('!', 64, 67);
+    return canvas;
 }
 
-// Định dạng giây thành mm:ss
-function formatTime(seconds) {
-    if (seconds <= 0) return '00:00';
-    const m = Math.floor(seconds / 60);
-    const s = Math.floor(seconds % 60);
-    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+function getWorldIndicatorSprite(target, kind = 'attention', scale = 0.7) {
+    if (!target) return null;
+    let entry = worldIndicatorCache.get(target);
+    if (!entry) {
+        let texture = worldIndicatorTextureCache.get(kind);
+        if (!texture) {
+            texture = new THREE.CanvasTexture(createWorldIndicatorTexture(kind));
+            texture.needsUpdate = true;
+            worldIndicatorTextureCache.set(kind, texture);
+        }
+        const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false }));
+        sprite.renderOrder = 100;
+        target.add(sprite);
+        entry = { sprite, kind: null };
+        worldIndicatorCache.set(target, entry);
+    }
+    if (entry.kind !== kind) {
+        entry.sprite.material.map = worldIndicatorTextureCache.get(kind) || null;
+        entry.sprite.material.needsUpdate = true;
+        entry.kind = kind;
+    }
+    entry.sprite.position.set(0, Math.max(1.25, target.userData?.indicatorY || 1.7), 0);
+    entry.sprite.scale.set(scale, scale, 1);
+    entry.sprite.visible = true;
+    return entry.sprite;
 }
 
-// Cập nhật thẻ HUD bay đếm giờ trên đầu vật thể 3D
-function updateFloatingHUD() {
-    const container = document.getElementById('floating-hud-container');
-    if (!container) return;
+function setWorldIndicator(target, kind, visible = true, scale = 0.7) {
+    if (!target) return;
+    if (!visible) {
+        const entry = worldIndicatorCache.get(target);
+        if (entry) entry.sprite.visible = false;
+        return;
+    }
+    getWorldIndicatorSprite(target, kind, scale);
+}
 
-    let htmlContent = '';
+function getReadyMarketCount() {
+    const orders = Array.isArray(gameState.marketOrders) ? gameState.marketOrders : [];
+    return orders.filter(order => {
+        if (order.completed || !Array.isArray(order.reqs) || !order.reqs.length) return false;
+        const totals = new Map();
+        order.reqs.forEach(req => { if (req && typeof req.id === 'string') totals.set(req.id, (totals.get(req.id) || 0) + Math.max(0, Number(req.qty) || 0)); });
+        return Array.from(totals.entries()).every(([id, qty]) => (Number(gameState.inventory && gameState.inventory[id]) || 0) >= qty);
+    }).length;
+}
+
+function updateWorldIndicators() {
     const now = Date.now();
 
-    // 1. HUD Ô ĐẤT TRỒNG LÚA / NÔNG SẢN
     if (typeof plotMeshes !== 'undefined') {
         plotMeshes.forEach((mesh, i) => {
             const plot = gameState.plots[i];
-            if (!gameState.unlockedPlots[i] || !plot || !plot.cropId) return;
-
-            mesh.getWorldPosition(tempV);
-            tempV.y += 1.2;
-            const pos = getScreenCoords(tempV);
-            if (!pos) return;
-
-            const crop = CROPS_DB[plot.cropId];
-            if (!crop) return;
-
-            let badgeText = '';
-            let badgeStyle = 'bg-white/95 border-amber-400 text-slate-800';
-
-            if (plot.isDead) {
-                badgeStyle = 'bg-rose-500 text-white border-rose-600';
-                badgeText = '🥀 Cây Chết';
-            } else if (plot.hasPest) {
-                badgeStyle = 'bg-purple-600 text-white border-purple-700 animate-pulse';
-                badgeText = '🐛 Có Sâu!';
-            } else {
-                const effTime = crop.growTime - (plot.reducedSecs || 0);
-                const elapsed = (now - plot.plantedAt) / 1000;
-                const remSecs = Math.max(0, Math.ceil(effTime - elapsed));
-
-                if (remSecs === 0) {
-                    badgeStyle = 'bg-emerald-500 text-white border-emerald-600 animate-bounce';
-                    badgeText = `${crop.icon} Thu Hoạch!`;
-                } else {
-                    badgeText = `${crop.icon} ${formatTime(remSecs)}`;
+            if (!gameState.unlockedPlots[i] || !plot || !plot.cropId) { setWorldIndicator(mesh, null, false); return; }
+            let kind = null;
+            if (plot.isDead) kind = 'dead';
+            else if (plot.hasPest) kind = 'pest';
+            else {
+                const crop = CROPS_DB[plot.cropId];
+                if (crop) {
+                    const effTime = crop.growTime - (plot.reducedSecs || 0);
+                    const elapsed = (now - plot.plantedAt) / 1000;
+                    if (Math.max(0, Math.ceil(effTime - elapsed)) === 0) kind = 'ready';
                 }
             }
-
-            htmlContent += `
-                <div class="hud-badge ${badgeStyle} border px-2 py-1 rounded-xl shadow-md text-[11px] font-black flex items-center gap-1.5 absolute" style="left: ${pos.x}px; top: ${pos.y}px; transform: translate(-50%, -100%); pointer-events: none;">
-                    ${badgeText}
-                </div>
-            `;
+            setWorldIndicator(mesh, kind, !!kind, 0.68);
         });
     }
 
-    // 2. HUD CÂY ĂN QUẢ (Lớn / Chờ ra trái / Sẵn sàng)
     if (typeof orchardPlotMeshes !== 'undefined') {
         gameState.orchardPlots.forEach((tree, i) => {
-            if (!tree.unlocked || !tree.treeType) return;
-            const mesh = orchardPlotMeshes[i];
-            if (!mesh) return;
-
-            mesh.getWorldPosition(tempV);
-            tempV.y += 3.2;
-            const pos = getScreenCoords(tempV);
-            if (!pos) return;
-
-            const treeInfo = TREES_DB[tree.treeType];
-            if (!treeInfo) return;
-
-            const timing = typeof getOrchardTiming === 'function' ? getOrchardTiming(tree, now) : { remainingSecs: 0, ready: false, progress: 0 };
-            // Grow the complete tree smoothly while the sapling matures. After
-            // its first harvest, keep its full size through every later cycle.
-            const mature = Number(tree.lastHarvestAt) > 0 || Number(tree.yieldCount || 0) > 0;
-            const growthRatio = mature ? 1 : Math.max(0, Math.min(1, Number(timing.progress) || 0));
-            if (mesh.userData && mesh.userData.treeMesh) {
-                mesh.userData.treeMesh.scale.setScalar(0.42 + growthRatio * 0.58);
-                // Keep fruit visibility synchronized with the same timer as the HUD.
-                // Fruit appears when ready and disappears immediately after harvest.
-                const fruitGroup = mesh.userData.treeMesh.userData && mesh.userData.treeMesh.userData.fruitGroup;
-                if (fruitGroup) fruitGroup.visible = !!timing.ready;
-            }
-            let badgeText = '';
-            let badgeStyle = 'bg-white/95 border-emerald-500 text-slate-800';
-            if (timing.ready) {
-                badgeStyle = 'bg-emerald-500 text-white border-emerald-600 animate-bounce';
-                badgeText = `${treeInfo.icon} Thu Hoạch!`;
-            } else {
-                badgeText = `${treeInfo.icon} ${formatTime(timing.remainingSecs)}`;
-            }
-
-            htmlContent += `
-                <div class="hud-badge ${badgeStyle} border px-2 py-1 rounded-xl shadow-md text-[11px] font-black flex items-center gap-1.5 absolute" style="left: ${pos.x}px; top: ${pos.y}px; transform: translate(-50%, -100%); pointer-events: none;">
-                    ${badgeText}
-                </div>
-            `;
+            const mesh = orchardPlotMeshes[i]; if (!mesh || !tree?.unlocked || !tree.treeType) { if (mesh) setWorldIndicator(mesh, null, false); return; }
+            const timing = typeof getOrchardTiming === 'function' ? getOrchardTiming(tree, now) : { ready: false };
+            setWorldIndicator(mesh, 'ready', !!timing.ready, 0.72);
         });
     }
 
-    // 3. HUD BẾP NẤU ĂN 3D
-    if (typeof stoveMeshes !== 'undefined') {
-        stoveMeshes.forEach((group, i) => {
-            const stove = gameState.kitchenStoves[i];
-            if (!stove || !stove.unlocked) {
-                if (group.userData && group.userData.warningSprite) group.userData.warningSprite.visible = false;
-                return;
-            }
-
-            // Dấu ! chỉ gắn trên mô hình bếp (không thêm cảnh báo vào Floating HUD).
-            // Hàng chờ chưa tiêu hao nguyên liệu; cảnh báo khi có món chờ chưa đủ nguyên liệu.
-            const hasBlockedQueuedRecipe = Array.isArray(stove.queue) && stove.queue.some(job => {
-                const queuedRecipe = job && RECIPES_DB[job.recipeId];
-                if (!queuedRecipe || !queuedRecipe.ingredients) return false;
-                return Object.entries(queuedRecipe.ingredients).some(([itemKey, required]) =>
-                    (Number(gameState.inventory[itemKey]) || 0) < Number(required)
-                );
-            });
-            if (group.userData && group.userData.warningSprite) group.userData.warningSprite.visible = hasBlockedQueuedRecipe;
-            if (!stove.cooking) return;
-
-            group.getWorldPosition(tempV);
-            tempV.y += 1.6;
-            const pos = getScreenCoords(tempV);
-            if (!pos) return;
-
-            const recipe = RECIPES_DB[stove.recipeId];
-            if (!recipe) return;
-
-            const elapsed = (now - stove.startTime) / 1000;
-            const remSecs = Math.max(0, Math.ceil(stove.duration - elapsed));
-
-            let badgeStyle = 'bg-white/95 border-amber-500 text-slate-800';
-            let badgeText = `${recipe.icon} ${formatTime(remSecs)}`;
-
-            if (remSecs === 0) {
-                badgeStyle = 'bg-amber-500 text-white border-amber-600 animate-bounce';
-                badgeText = `${recipe.icon} Xong Rồi!`;
-            }
-
-            htmlContent += `
-                <div class="hud-badge ${badgeStyle} border px-2 py-1 rounded-xl shadow-md text-[11px] font-black flex items-center gap-1.5 absolute" style="left: ${pos.x}px; top: ${pos.y}px; transform: translate(-50%, -100%); pointer-events: none;">
-                    ${badgeText}
-                </div>
-            `;
-        });
-    }
-
-    // Đã bỏ số lượng vịt khỏi floating HUD; số vịt vẫn hiển thị trong bảng quản lý ao.
-
-    // 4. HUD AO CÁ
-    if (gameState.fishPond && gameState.fishPond.fishes.length > 0) {
-        tempV.set(0, 1.2, 20);
-        const pos = getScreenCoords(tempV);
-        if (pos) {
-            let adultCount = 0;
-            let growingCount = 0;
-
-            gameState.fishPond.fishes.forEach(f => {
-                const fInfo = FISH_DB[f.type];
-                if (fInfo) {
-                    const elapsed = (now - f.plantedAt) / 1000;
-                    if (elapsed >= fInfo.growTime && !f.sick && Number(f.hunger) > 0) adultCount++;
-                    else growingCount++;
-                }
-            });
-
-            let badgeText = '';
-            let badgeStyle = 'bg-white/95 border-sky-400 text-slate-800';
-
-            if (adultCount > 0) {
-                badgeStyle = 'bg-sky-500 text-white border-sky-600 animate-bounce';
-                badgeText = `🐟 ${adultCount} Cá Lớn!`;
-            } else {
-                badgeText = `🐟 ${growingCount} Cá Con`;
-            }
-
-            htmlContent += `
-                <div class="hud-badge ${badgeStyle} border px-2 py-1 rounded-xl shadow-md text-[11px] font-black flex items-center gap-1.5 absolute" style="left: ${pos.x}px; top: ${pos.y}px; transform: translate(-50%, -100%); pointer-events: none;">
-                    ${badgeText}
-                </div>
-            `;
+    if (typeof chickenMeshes !== 'undefined') chickenMeshes.forEach(item => {
+        const c = item.data, mesh = item.mesh;
+        const ageSecs = (now - c.bornAt) / 1000, growTime = 300, cycleTime = 180;
+        let kind = null;
+        if (c.sick) kind = 'sick';
+        else if (c.hungry) kind = 'hungry';
+        else if (ageSecs >= growTime) {
+            const lastTime = Math.max(Number(c.producedAt) || 0, c.bornAt + growTime * 1000);
+            if ((now - lastTime) / 1000 >= cycleTime && (c.yieldCount || 0) < 10) kind = 'ready';
         }
-    }
+        setWorldIndicator(mesh, kind, !!kind, 0.58);
+    });
 
-    // 5. HUD GÀ (Lớn / Chờ đẻ / Sẵn sàng)
-    if (typeof chickenMeshes !== 'undefined') {
-        chickenMeshes.forEach(item => {
-            const c = item.data;
-            const ageSecs = (now - c.bornAt) / 1000;
-            const growTime = 300;  // 5 phút lớn
-            const cycleTime = 180; // 3 phút đẻ 1 lần
+    if (typeof cowMeshes !== 'undefined') cowMeshes.forEach(item => {
+        const c = item.data, mesh = item.mesh;
+        const ageSecs = (now - c.bornAt) / 1000, growTime = 600, cycleTime = 360;
+        let kind = null;
+        if (c.sick) kind = 'sick';
+        else if (c.hungry) kind = 'hungry';
+        else if (ageSecs >= growTime) {
+            const lastTime = Math.max(Number(c.producedAt) || 0, c.bornAt + growTime * 1000);
+            if ((now - lastTime) / 1000 >= cycleTime && (c.yieldCount || 0) < 10) kind = 'ready';
+        }
+        setWorldIndicator(mesh, kind, !!kind, 0.62);
+    });
 
-            tempV.set(c.x, 0.9, c.z);
-            const pos = getScreenCoords(tempV);
-            if (pos) {
-                let badgeStyle = 'bg-white/95 border-amber-400 text-slate-800';
-                let textHtml = '';
+    if (typeof pigMeshes !== 'undefined') pigMeshes.forEach(item => {
+        const p = item.data, mesh = item.mesh;
+        const ageSecs = (now - p.bornAt) / 1000;
+        let kind = null;
+        if (p.sick) kind = 'sick';
+        else if (p.hungry || (p.hunger !== undefined && p.hunger <= 40)) kind = 'hungry';
+        else if (ageSecs >= 900) kind = 'ready';
+        setWorldIndicator(mesh, kind, !!kind, 0.6);
+    });
 
-                if (c.sick) {
-                    badgeStyle = 'bg-rose-500 text-white border-rose-600';
-                    textHtml = '<span class="text-base">🐥 💊</span> Bệnh!';
-                } else if (c.hungry) {
-                    badgeStyle = 'bg-amber-500 text-white border-amber-600';
-                    textHtml = '<span class="text-base">🐥 🌾</span> Đói!';
-                } else if (ageSecs < growTime) {
-                    const remSecs = Math.ceil(growTime - ageSecs);
-                    textHtml = `<span class="text-base">🐥</span> <span class="font-mono text-amber-600">${formatTime(remSecs)}</span>`;
-                } else {
-                    const lastTime = Math.max(Number(c.producedAt) || 0, c.bornAt + growTime * 1000);
-                    const elapsed = (now - lastTime) / 1000;
-                    if (elapsed >= cycleTime && (c.yieldCount || 0) < 10) {
-                        badgeStyle = 'bg-emerald-500 text-white border-emerald-600 animate-bounce';
-                        textHtml = '<span class="text-base">🥚</span> Sẵn sàng!';
-                    } else {
-                        const remSecs = Math.ceil(cycleTime - elapsed);
-                        textHtml = `<span class="text-base">🥚</span> <span class="font-mono">${formatTime(remSecs)}</span>`;
-                    }
-                }
-
-                htmlContent += `
-                    <div class="hud-badge ${badgeStyle} border px-2 py-1 rounded-xl shadow-md text-[11px] font-black flex items-center gap-1.5 absolute" style="left: ${pos.x}px; top: ${pos.y}px; transform: translate(-50%, -100%); pointer-events: none;">
-                        ${textHtml}
-                    </div>
-                `;
-            }
-        });
-    }
-
-    // 6. HUD BÒ (Lớn / Chờ vắt sữa / Sẵn sàng)
-    if (typeof cowMeshes !== 'undefined') {
-        cowMeshes.forEach(item => {
-            const c = item.data;
-            const ageSecs = (now - c.bornAt) / 1000;
-            const growTime = 600;  // 10 phút lớn
-            const cycleTime = 360; // 6 phút cho sữa 1 lần
-
-            tempV.set(c.x, 1.8, c.z);
-            const pos = getScreenCoords(tempV);
-            if (pos) {
-                let badgeStyle = 'bg-white/95 border-sky-400 text-slate-800';
-                let textHtml = '';
-
-                if (c.sick) {
-                    badgeStyle = 'bg-rose-500 text-white border-rose-600';
-                    textHtml = '<span class="text-base">🐮 💊</span> Bệnh!';
-                } else if (c.hungry) {
-                    badgeStyle = 'bg-amber-500 text-white border-amber-600';
-                    textHtml = '<span class="text-base">🐮 🌿</span> Đói!';
-                } else if (ageSecs < growTime) {
-                    const remSecs = Math.ceil(growTime - ageSecs);
-                    textHtml = `<span class="text-base">🐮</span> <span class="font-mono text-sky-600">${formatTime(remSecs)}</span>`;
-                } else {
-                    const lastTime = Math.max(Number(c.producedAt) || 0, c.bornAt + growTime * 1000);
-                    const elapsed = (now - lastTime) / 1000;
-                    if (elapsed >= cycleTime && (c.yieldCount || 0) < 10) {
-                        badgeStyle = 'bg-emerald-500 text-white border-emerald-600 animate-bounce';
-                        textHtml = '<span class="text-base">🥛</span> Sẵn sàng!';
-                    } else {
-                        const remSecs = Math.ceil(cycleTime - elapsed);
-                        textHtml = `<span class="text-base">🥛</span> <span class="font-mono">${formatTime(remSecs)}</span>`;
-                    }
-                }
-
-                htmlContent += `
-                    <div class="hud-badge ${badgeStyle} border px-2 py-1 rounded-xl shadow-md text-[11px] font-black flex items-center gap-1.5 absolute" style="left: ${pos.x}px; top: ${pos.y}px; transform: translate(-50%, -100%); pointer-events: none;">
-                        ${textHtml}
-                    </div>
-                `;
-            }
-        });
-    }
-
-        // 7. HUD HEO (Hiển thị đếm giờ 15 phút lớn -> Sẵn sàng xuất chuồng)
-    if (typeof pigMeshes !== 'undefined') {
-        pigMeshes.forEach(item => {
-            const p = item.data;
-            const ageSecs = (now - p.bornAt) / 1000;
-            const growTime = 900;  // 15 phút lớn để xuất chuồng
-
-            tempV.set(p.x, 1.2, p.z);
-            const pos = getScreenCoords(tempV);
-            if (pos) {
-                let badgeStyle = 'bg-white/95 border-pink-400 text-slate-800';
-                let textHtml = '';
-
-                if (p.sick) {
-                    badgeStyle = 'bg-rose-500 text-white border-rose-600';
-                    textHtml = '<span class="text-base">🐷 💊</span> Bệnh!';
-                } else if (p.hungry || (p.hunger !== undefined && p.hunger <= 40)) {
-                    badgeStyle = 'bg-amber-500 text-white border-amber-600';
-                    textHtml = '<span class="text-base">🐷 🥔</span> Đói!';
-                } else if (ageSecs < growTime) {
-                    const remSecs = Math.ceil(growTime - ageSecs);
-                    textHtml = `<span class="text-base">🐷</span> <span class="font-mono text-pink-600">${formatTime(remSecs)}</span>`;
-                } else {
-                    badgeStyle = 'bg-emerald-500 text-white border-emerald-600 animate-bounce';
-                    textHtml = '<span class="text-base">🥩</span> Xuất Chuồng!';
-                }
-
-                htmlContent += `
-                    <div class="hud-badge ${badgeStyle} border px-2 py-1 rounded-xl shadow-md text-[11px] font-black flex items-center gap-1.5 absolute" style="left: ${pos.x}px; top: ${pos.y}px; transform: translate(-50%, -100%); pointer-events: none;">
-                        ${textHtml}
-                    </div>
-                `;
-            }
-        });
-    }
-
-
-    // HUD VỊT: hiện thời gian lớn, chu kỳ đẻ trứng và tiến độ xuất chuồng ngay trên đầu từng con.
-    if (typeof pondDuckMeshes !== 'undefined' && Array.isArray(gameState.fishPond && gameState.fishPond.ducks)) {
+    if (typeof pondDuckMeshes !== 'undefined' && Array.isArray(gameState.fishPond?.ducks)) {
         pondDuckMeshes.forEach((mesh, idx) => {
             const duck = gameState.fishPond.ducks[idx]; if (!duck) return;
-            mesh.getWorldPosition(tempV); tempV.y += 1.0; const pos = getScreenCoords(tempV); if (!pos) return;
-            const age = (now - (Number(duck.bornAt)||now))/1000; const grown = 180; const cycle = 180; const eggs = Number(duck.eggCount)||0;
-            let label, cls='bg-white/95 border-amber-400 text-slate-800';
-            if (duck.sick) { label='🦆 Bệnh · cần thuốc'; cls='bg-rose-500 text-white border-rose-600'; }
-            else if (duck.hunger <= 40) { label='🦆 Đói · cần cho ăn'; cls='bg-amber-500 text-white border-amber-600'; }
-            else if (age < grown) label=`🐣 Lớn ${formatTime(grown-age)}`;
-            else if (eggs >= 8) { label='🦆 Đủ 8 trứng · xuất chuồng'; cls='bg-emerald-500 text-white border-emerald-600 animate-bounce'; }
-            else { const elapsed=(now-(Number(duck.producedAt)||Number(duck.bornAt)||now))/1000; label=(duck.hunger > 40 && elapsed>=cycle)?`🥚 Sẵn sàng · ${eggs}/8`:`🥚 ${formatTime(cycle-elapsed)} · ${eggs}/8`; if(duck.hunger > 40 && elapsed>=cycle){cls='bg-emerald-500 text-white border-emerald-600 animate-pulse';} }
-            htmlContent += `<div class="hud-badge ${cls} border-2 px-3 py-1.5 rounded-xl shadow-lg text-[13px] font-black flex items-center gap-1.5 absolute whitespace-nowrap" style="left:${pos.x}px;top:${pos.y}px;transform:translate(-50%,-100%);pointer-events:none;z-index:20">${label}</div>`;
+            const age = (now - (Number(duck.bornAt) || now)) / 1000, grown = 180, cycle = 180, eggs = Number(duck.eggCount) || 0;
+            let kind = null;
+            if (duck.sick) kind = 'sick';
+            else if (duck.hunger <= 40) kind = 'hungry';
+            else if (age >= grown) {
+                const elapsed = (now - (Number(duck.producedAt) || Number(duck.bornAt) || now)) / 1000;
+                if (eggs >= 8 || (elapsed >= cycle && eggs < 8)) kind = 'ready';
+            }
+            setWorldIndicator(mesh, kind, !!kind, 0.58);
         });
     }
 
-    // HUD 2D trên sạp chợ, luôn hướng người chơi khi đơn đã đủ nguyên liệu.
-    if (typeof gameState.marketOrders !== 'undefined') {
-        const ready = (gameState.marketOrders||[]).filter(o=>!o.completed && Array.isArray(o.reqs) && o.reqs.length>0 && o.reqs.every(r=>(Number(gameState.inventory && gameState.inventory[r.id])||0)>=(Number(r.qty)||0))).length;
-        if (ready > 0) { tempV.set(27,3.7,2); const pos=getScreenCoords(tempV); if(pos) htmlContent += `<div class="absolute px-3 py-2 rounded-2xl bg-rose-600 text-white border-2 border-white shadow-xl font-black text-sm animate-bounce whitespace-nowrap" style="left:${pos.x}px;top:${pos.y}px;transform:translate(-50%,-100%);pointer-events:none;z-index:30">❗ ${ready} ĐƠN GIAO ĐƯỢC</div>`; }
+    // Fish pond: one compact indicator on the pond rather than a large floating label.
+    if (gameState.fishPond && gameState.fishPond.fishes?.length) {
+        const fishTarget = scene?.getObjectByName('fishPondIndicatorAnchor') || (() => {
+            const g = new THREE.Object3D(); g.name = 'fishPondIndicatorAnchor'; g.position.set(0, 0, 20); g.userData.indicatorY = 1.4; scene.add(g); return g;
+        })();
+        let adultCount = 0;
+        gameState.fishPond.fishes.forEach(f => { const info = FISH_DB[f.type]; if (info && (now - f.plantedAt) / 1000 >= info.growTime && !f.sick && Number(f.hunger) > 0) adultCount++; });
+        setWorldIndicator(fishTarget, 'ready', adultCount > 0, 0.7);
     }
 
-    container.innerHTML = htmlContent;
+    // Market: one world indicator on the stall, same sprite mechanism as the kitchen.
+    const marketTarget = scene?.getObjectByName('marketIndicatorAnchor') || (() => {
+        const found = scene?.getObjectByProperty?.('userData.type', 'market_sign');
+        if (!found) return null;
+        const g = new THREE.Object3D(); g.name = 'marketIndicatorAnchor'; g.position.set(0, 2.4, 0); found.add(g); return g;
+    })();
+    if (marketTarget) setWorldIndicator(marketTarget, 'attention', getReadyMarketCount() > 0, 0.72);
+}
+
+let floatingHudNextTick = 0;
+let floatingHudNextPhoneTick = 0;
+function updateFloatingHUDThrottled(now = performance.now()) {
+    if (now >= floatingHudNextTick) {
+        floatingHudNextTick = now + 250;
+        updateWorldIndicators();
+        if (typeof updateMarketReadyIndicator === 'function') updateMarketReadyIndicator();
+    }
+    if (now >= floatingHudNextPhoneTick) {
+        floatingHudNextPhoneTick = now + 1000;
+        if (typeof updateFarmPhoneNotification === 'function') updateFarmPhoneNotification();
+    }
+}
+function updateFloatingHUD() {
+    updateWorldIndicators();
+    if (typeof updateMarketReadyIndicator === 'function') updateMarketReadyIndicator();
+    if (typeof updateFarmPhoneNotification === 'function') updateFarmPhoneNotification();
 }
