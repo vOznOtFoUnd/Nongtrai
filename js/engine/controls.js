@@ -76,51 +76,64 @@ function setupTouchAndClickEvents() {
         raycaster.setFromCamera(mouse, camera);
         const intersects = raycaster.intersectObjects(scene.children, true);
 
-        if (intersects.length > 0) {
-            let hitObj = intersects[0].object;
-            while (hitObj.parent && hitObj.parent !== scene && !hitObj.userData.type) {
-                hitObj = hitObj.parent;
-            }
-
-            const type = hitObj.userData.type;
-            const point = intersects[0].point;
-
-            if (type === 'ground') {
-                playerTargetPos = new THREE.Vector3(point.x, 0, point.z);
-            } else if (type === 'plot') {
-                const idx = hitObj.userData.index;
-                playerTargetPos = new THREE.Vector3(hitObj.position.x, 0, hitObj.position.z + 1.2);
-                pendingWorldInteraction = () => handlePlotClick(idx);
-            } else if (type === 'orchard') {
-                const idx = hitObj.userData.index;
-                playerTargetPos = new THREE.Vector3(hitObj.position.x, 0, hitObj.position.z + 1.5);
-                pendingWorldInteraction = () => handleOrchardClick(idx);
-            } else if (type && type.endsWith('_trigger')) {
-                playerTargetPos = new THREE.Vector3(hitObj.position.x, 0, hitObj.position.z);
-            } else if (type === 'plot_upgrade_npc') {
-                const worldPos = hitObj.getWorldPosition(new THREE.Vector3());
-                playerTargetPos = new THREE.Vector3(worldPos.x, 0, worldPos.z + 1.5);
-                pendingWorldInteraction = () => openPlotUpgradeModal();
-            } else if (type === 'pond') {
-                playerTargetPos = new THREE.Vector3(0, 0, 20 - 4);
-                pendingWorldInteraction = () => openFishPondModal();
-            } else if (type === 'minigame_horse') {
-                const worldPos = hitObj.getWorldPosition(new THREE.Vector3());
-                playerTargetPos = new THREE.Vector3(worldPos.x, 0, worldPos.z + 1.5);
-                pendingWorldInteraction = () => openHorseRaceModal();
-            } else if (type === 'minigame_baucua') {
-                const worldPos = hitObj.getWorldPosition(new THREE.Vector3());
-                playerTargetPos = new THREE.Vector3(worldPos.x, 0, worldPos.z + 2.5);
-                pendingWorldInteraction = () => openBauCuaModal();
-            } else if (type === 'market_sign') {
-                const worldPos = hitObj.getWorldPosition(new THREE.Vector3());
-                playerTargetPos = new THREE.Vector3(worldPos.x, 0, worldPos.z + 2.0);
-                pendingWorldInteraction = () => openModal('modal-market');
-            } else if (type === 'stove') {
-                playerTargetPos = new THREE.Vector3(hitObj.position.x, 0, hitObj.position.z + 1.2);
-                pendingWorldInteraction = () => openModal('modal-kitchen');
+        // Bỏ qua vật trang trí không tương tác (cỏ, đá, cây thông, chim...) và
+        // tìm mặt đường/mặt đất bên dưới thay vì dừng ở mesh không có type.
+        let resolved = null;
+        for (const hit of intersects) {
+            let obj = hit.object;
+            let typed = obj;
+            while (typed && typed !== scene && !(typed.userData && typed.userData.type)) typed = typed.parent;
+            const type = typed && typed.userData ? typed.userData.type : null;
+            if (type) {
+                resolved = { object: typed, point: hit.point, type };
+                break;
             }
         }
+        if (!resolved) return;
+
+        const hitObj = resolved.object;
+        const type = resolved.type;
+        const point = resolved.point;
+        pendingWorldInteraction = null;
+
+        if (type === 'ground' || type === 'path') {
+            // Mặt đường có thể nằm cao hơn ground; luôn đưa nhân vật về cao độ 0.
+            playerTargetPos = new THREE.Vector3(point.x, 0, point.z);
+        } else if (type === 'plot') {
+            const idx = hitObj.userData.index;
+            playerTargetPos = new THREE.Vector3(hitObj.position.x, 0, hitObj.position.z + 1.2);
+            pendingWorldInteraction = () => handlePlotClick(idx);
+        } else if (type === 'orchard') {
+            const idx = hitObj.userData.index;
+            playerTargetPos = new THREE.Vector3(hitObj.position.x, 0, hitObj.position.z + 1.5);
+            pendingWorldInteraction = () => handleOrchardClick(idx);
+        } else if (type.endsWith('_trigger')) {
+            playerTargetPos = new THREE.Vector3(hitObj.position.x, 0, hitObj.position.z);
+        } else if (type === 'plot_upgrade_npc') {
+            const worldPos = hitObj.getWorldPosition(new THREE.Vector3());
+            playerTargetPos = new THREE.Vector3(worldPos.x, 0, worldPos.z + 1.5);
+            pendingWorldInteraction = () => openPlotUpgradeModal();
+        } else if (type === 'pond') {
+            playerTargetPos = new THREE.Vector3(0, 0, 16);
+            pendingWorldInteraction = () => openFishPondModal();
+        } else if (type === 'minigame_horse') {
+            const worldPos = hitObj.getWorldPosition(new THREE.Vector3());
+            playerTargetPos = new THREE.Vector3(worldPos.x, 0, worldPos.z + 1.5);
+            pendingWorldInteraction = () => openHorseRaceModal();
+        } else if (type === 'minigame_baucua') {
+            const worldPos = hitObj.getWorldPosition(new THREE.Vector3());
+            playerTargetPos = new THREE.Vector3(worldPos.x, 0, worldPos.z + 2.5);
+            pendingWorldInteraction = () => openBauCuaModal();
+        } else if (type === 'market_sign') {
+            const worldPos = hitObj.getWorldPosition(new THREE.Vector3());
+            playerTargetPos = new THREE.Vector3(worldPos.x, 0, worldPos.z + 2.0);
+            pendingWorldInteraction = () => openModal('modal-market');
+        } else if (type === 'stove') {
+            const worldPos = hitObj.getWorldPosition(new THREE.Vector3());
+            playerTargetPos = new THREE.Vector3(worldPos.x, 0, worldPos.z + 1.2);
+            pendingWorldInteraction = () => openModal('modal-kitchen');
+        }
+
     });
 
     window.addEventListener('keydown', handleKeyDown);
