@@ -45,38 +45,83 @@ function updateOrchardVisual(idx) {
         mesh.userData.treeMesh = null;
     }
 
-    if (tree.unlocked) {
-        if (tree.treeType) {
-            const treeInfo = TREES_DB[tree.treeType];
-            if (!treeInfo) return;
-            const timing = getOrchardTiming(tree, Date.now());
-            const ratio = timing.progress;
+    if (tree.unlocked && tree.treeType) {
+        const treeInfo = TREES_DB[tree.treeType];
+        if (!treeInfo) return;
+        const timing = getOrchardTiming(tree, Date.now());
+        // The sapling's whole shape grows together: trunk, branches and canopy.
+        // After the first harvest, the tree stays mature; harvest timing only
+        // controls fruit visibility and never shrinks the established tree.
+        const ratio = (tree.lastHarvestAt > 0 || Number(tree.yieldCount || 0) > 0) ? 1 : timing.progress;
+        const growthScale = 0.42 + ratio * 0.58;
+        const group = new THREE.Group();
+        // Handcrafted chibi fruit tree prototype: rounded canopy clusters and soft colors.
+        const trunkMat = new THREE.MeshStandardMaterial({ color: 0x98613a, roughness: 0.88 });
+        const branchMat = new THREE.MeshStandardMaterial({ color: 0x80502f, roughness: 0.9 });
+        const leafColors = [0x63b85b, 0x78c968, 0x4fae58];
+        const leafMats = leafColors.map(color => new THREE.MeshStandardMaterial({ color, roughness: 0.82 }));
+        const trunkHeight = 1.75;
+        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.25, trunkHeight, 10), trunkMat);
+        trunk.position.y = trunkHeight / 2;
+        trunk.castShadow = true;
+        trunk.receiveShadow = true;
+        group.add(trunk);
+        // Short branches peeking from the canopy add a little handmade character.
+        [-1, 1].forEach(side => {
+            const branch = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.075, 0.72, 7), branchMat);
+            branch.position.set(side * 0.36, 1.55, 0.02);
+            branch.rotation.z = side * -0.62;
+            branch.castShadow = true;
+            group.add(branch);
+        });
+        const canopy = new THREE.Group();
+        const canopyParts = [
+            { p: [0, 2.20, 0], s: [0.88, 0.80, 0.82], m: 0 },
+            { p: [-0.52, 1.92, 0.02], s: [0.62, 0.62, 0.62], m: 1 },
+            { p: [0.52, 1.95, 0.00], s: [0.64, 0.66, 0.62], m: 2 },
+            { p: [0.02, 2.60, -0.02], s: [0.62, 0.60, 0.62], m: 1 },
+            { p: [0.02, 1.84, -0.46], s: [0.55, 0.55, 0.54], m: 0 }
+        ];
+        canopyParts.forEach(part => {
+            const leaf = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 12), leafMats[part.m]);
+            leaf.position.set(part.p[0], part.p[1], part.p[2]);
+            leaf.scale.set(part.s[0], part.s[1], part.s[2]);
+            leaf.castShadow = true;
+            leaf.receiveShadow = true;
+            canopy.add(leaf);
+        });
+        // Keep canopy proportions fixed; the parent scales the whole tree.
+        canopy.position.y = 0.12;
+        group.add(canopy);
 
-            const group = new THREE.Group();
-            const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.3, 2.0), new THREE.MeshStandardMaterial({ color: 0x78350f }));
-            trunk.position.y = 1.0;
-            group.add(trunk);
-
-            const foliageScale = 0.5 + ratio * 0.7;
-            const leaves = new THREE.Mesh(new THREE.DodecahedronGeometry(1.2 * foliageScale), new THREE.MeshStandardMaterial({ color: 0x15803d }));
-            leaves.position.y = 2.4 * foliageScale;
-            group.add(leaves);
-
-            if (ratio >= 1.0) {
-                for (let f = 0; f < 5; f++) {
-                    const fruit = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 8), new THREE.MeshStandardMaterial({ color: 0xef4444 }));
-                    fruit.position.set(
-                        (Math.random() - 0.5) * 1.2,
-                        2.0 + Math.random() * 0.8,
-                        (Math.random() - 0.5) * 1.2
-                    );
-                    group.add(fruit);
-                }
-            }
-
-            mesh.add(group);
-            mesh.userData.treeMesh = group;
-        }
+        // Fruit meshes are created once with the tree, then toggled by the shared
+        // harvest timer. This lets fruit appear automatically when the tree ripens
+        // without rebuilding the whole tree or changing its mature size.
+        const fruitGroup = new THREE.Group();
+        const fruitColors = { apple: 0xef5350, orange: 0xffa726, peach: 0xffa4a8, mango: 0xffd34e };
+        const fruitColor = fruitColors[tree.treeType] || 0xef5350;
+        const fruitMat = new THREE.MeshStandardMaterial({ color: fruitColor, roughness: 0.42, metalness: 0.0 });
+        const fruitPositions = [
+            [-0.56, 2.05, 0.38], [0.48, 2.22, 0.40], [-0.12, 2.62, 0.34],
+            [0.15, 1.88, -0.45], [0.62, 1.90, -0.12], [-0.54, 2.40, -0.18]
+        ];
+        fruitPositions.forEach((pos, i) => {
+            const fruit = new THREE.Mesh(new THREE.SphereGeometry(0.14, 12, 10), fruitMat);
+            fruit.position.set(pos[0], pos[1] + 0.12, pos[2]);
+            fruit.scale.set(1, 1.05, 1);
+            fruit.castShadow = true;
+            fruitGroup.add(fruit);
+            const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.018, 0.07, 5), branchMat);
+            stem.position.set(pos[0], pos[1] + 0.23, pos[2]);
+            stem.rotation.z = (i % 2 ? -0.18 : 0.18);
+            fruitGroup.add(stem);
+        });
+        fruitGroup.visible = timing.ready;
+        group.add(fruitGroup);
+        group.userData.fruitGroup = fruitGroup;
+        group.scale.setScalar(growthScale);
+        mesh.add(group);
+        mesh.userData.treeMesh = group;
     }
 }
 

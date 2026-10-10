@@ -49,30 +49,38 @@ function updatePondFishVisuals() {
     pondFishMeshes.forEach(f => scene.remove(f.mesh));
     pondFishMeshes = [];
 
-    (gameState.fishPond && Array.isArray(gameState.fishPond.fishes) ? gameState.fishPond.fishes : []).forEach((fish) => {
+    (gameState.fishPond && Array.isArray(gameState.fishPond.fishes) ? gameState.fishPond.fishes : []).forEach((fish, idx) => {
+        // UPGRADE 36: rounded chibi fish with clear body, fins, tail and glossy eyes.
         const fishGroup = new THREE.Group();
-        const isAdult = !fish.type.startsWith('fry_');
-        
-        const fishMat = new THREE.MeshStandardMaterial({
-            color: fish.type.includes('goldfish') ? 0xf97316 : 0x0ea5e9,
-            roughness: 0.3
+        const gold = String(fish.type || '').includes('goldfish');
+        const bodyMat = new THREE.MeshStandardMaterial({ color: gold ? 0xff9b32 : 0x45b9d8, roughness: 0.3, metalness: 0.04 });
+        const lightMat = new THREE.MeshStandardMaterial({ color: gold ? 0xffd98a : 0xb9f1f4, roughness: 0.38 });
+        const finMat = new THREE.MeshStandardMaterial({ color: gold ? 0xef6846 : 0x2589bd, roughness: 0.4, side: THREE.DoubleSide });
+        const eyeMat = new THREE.MeshBasicMaterial({ color: 0x17202a });
+        const shineMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        const scale = String(fish.type || '').startsWith('fry_') ? 0.68 : 1;
+        function ellipsoid(geo, mat, pos, size, rot) {
+            const m = new THREE.Mesh(geo || new THREE.SphereGeometry(1, 14, 10), mat);
+            m.position.set(pos[0], pos[1], pos[2]); m.scale.set(size[0], size[1], size[2]);
+            if (rot) m.rotation.set(rot[0] || 0, rot[1] || 0, rot[2] || 0);
+            m.castShadow = true; m.receiveShadow = true; fishGroup.add(m); return m;
+        }
+        ellipsoid(null, bodyMat, [0, 0, 0], [0.34*scale, 0.22*scale, 0.55*scale]);
+        ellipsoid(null, lightMat, [0, -0.065*scale, 0.12*scale], [0.23*scale, 0.105*scale, 0.32*scale]);
+        // Tail fin fans out behind the body; dorsal and side fins add a fish silhouette.
+        ellipsoid(new THREE.ConeGeometry(0.23*scale, 0.36*scale, 3), finMat, [0, 0.015, -0.62*scale], [1, 1, 1], [Math.PI/2, 0, Math.PI]);
+        ellipsoid(new THREE.ConeGeometry(0.14*scale, 0.25*scale, 3), finMat, [0, 0.19*scale, -0.05*scale], [1, 1, 1], [0, 0, Math.PI]);
+        ellipsoid(new THREE.ConeGeometry(0.12*scale, 0.22*scale, 3), finMat, [0.26*scale, -0.015, -0.05*scale], [1, 1, 1], [0, 0, -Math.PI/2]);
+        ellipsoid(new THREE.ConeGeometry(0.12*scale, 0.22*scale, 3), finMat, [-0.26*scale, -0.015, -0.05*scale], [1, 1, 1], [0, 0, Math.PI/2]);
+        [-1, 1].forEach(side => {
+            ellipsoid(null, eyeMat, [side*0.19*scale, 0.075*scale, 0.34*scale], [0.045*scale, 0.05*scale, 0.025*scale]);
+            ellipsoid(null, shineMat, [side*0.19*scale-0.01*scale, 0.095*scale, 0.36*scale], [0.013*scale, 0.014*scale, 0.009*scale]);
         });
-
-        const scale = isAdult ? 0.25 : 0.15;
-        const body = new THREE.Mesh(new THREE.ConeGeometry(scale, scale * 2.5, 8), fishMat);
-        body.rotation.x = Math.PI / 2;
-        fishGroup.add(body);
-
-        const tail = new THREE.Mesh(new THREE.BoxGeometry(0.02, scale * 0.8, scale * 0.8), fishMat);
-        tail.position.z = -scale * 1.2;
-        fishGroup.add(tail);
-
         fishGroup.position.set((Math.random()-0.5)*13.8, 0.22, 20+(Math.random()-0.5)*8.4);
         fishGroup.userData.swim = { phase: Math.random()*Math.PI*2, speed: 0.22+Math.random()*0.18, drift: (Math.random()-0.5)*0.8, originX: fishGroup.position.x, originZ: fishGroup.position.z };
         scene.add(fishGroup);
-
         pondFishMeshes.push({ mesh: fishGroup, data: fish });
-    });
+    });;
 }
 
 // Vịt bơi trong cùng ao nhưng có giới hạn riêng, không chiếm chỗ của cá.
@@ -83,14 +91,36 @@ function updatePondDuckVisuals() {
     const ducks = gameState.fishPond && Array.isArray(gameState.fishPond.ducks) ? gameState.fishPond.ducks : [];
     ducks.forEach((duck, idx) => {
         const group = new THREE.Group();
-        const mat = new THREE.MeshStandardMaterial({ color: 0xfff4c2, roughness: 0.7 });
-        const body = new THREE.Mesh(new THREE.SphereGeometry(0.28, 10, 8), mat);
-        body.scale.set(1.2, 0.8, 1.5); body.position.y = 0.23; group.add(body);
-        const head = new THREE.Mesh(new THREE.SphereGeometry(0.15, 8, 8), mat);
-        head.position.set(0, 0.42, 0.3); group.add(head);
-        const beak = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.18, 6), new THREE.MeshStandardMaterial({ color: 0xf97316 }));
-        beak.rotation.x = Math.PI / 2; beak.position.set(0, 0.4, 0.48); group.add(beak);
-        group.userData.duckIndex = idx; group.userData.swim = {phase:Math.random()*Math.PI*2, speed:0.12+Math.random()*0.08, x:(Math.random()-0.5)*13.8, z:20+(Math.random()-0.5)*8.2}; scene.add(group); pondDuckMeshes.push(group);
+        const feather = new THREE.MeshStandardMaterial({ color: 0xfff3cf, roughness: 0.78 });
+        const wingMat = new THREE.MeshStandardMaterial({ color: 0xffdf9b, roughness: 0.8 });
+        const orange = new THREE.MeshStandardMaterial({ color: 0xff8a18, roughness: 0.58 });
+        const eye = new THREE.MeshBasicMaterial({ color: 0x30212a });
+        const shine = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        function ball(position, scale, material) {
+            const m = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 10), material);
+            m.position.set(...position); m.scale.set(...scale); m.castShadow = true; m.receiveShadow = true; group.add(m); return m;
+        }
+        // Plump floating body, oversized head, tiny wings and tail feathers.
+        ball([0, 0.23, 0], [0.34, 0.22, 0.46], feather);
+        ball([0, 0.40, 0.29], [0.19, 0.19, 0.20], feather);
+        ball([-0.25, 0.25, 0.02], [0.12, 0.10, 0.24], wingMat);
+        ball([0.25, 0.25, 0.02], [0.12, 0.10, 0.24], wingMat);
+        [-1, 1].forEach(side => ball([side * 0.08, 0.44, 0.435], [0.025, 0.035, 0.018], eye));
+        [-1, 1].forEach(side => ball([side * 0.075, 0.455, 0.45], [0.008, 0.012, 0.008], shine));
+        const beak = new THREE.Mesh(new THREE.ConeGeometry(0.075, 0.17, 8), orange);
+        beak.rotation.x = Math.PI / 2; beak.position.set(0, 0.365, 0.52); beak.castShadow = true; group.add(beak);
+        // Soft cheek highlights and rounded tail feathers complete the chibi silhouette.
+        const cheekMat = new THREE.MeshBasicMaterial({ color: 0xffb0a2, transparent: true, opacity: 0.72 });
+        [-1, 1].forEach(side => ball([side * 0.145, 0.34, 0.425], [0.035, 0.022, 0.012], cheekMat));
+        [-1, 0, 1].forEach(i => ball([i * 0.065, 0.34, -0.39], [0.055, 0.075, 0.09], feather));
+        // Orange webbed feet peek out just above the waterline.
+        [-0.12, 0.12].forEach(x => {
+            const foot = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.025, 0.15), orange);
+            foot.position.set(x, 0.055, 0.06); foot.castShadow = true; group.add(foot);
+        });
+        group.userData.duckIndex = idx;
+        group.userData.swim = { phase: Math.random() * Math.PI * 2, speed: 0.12 + Math.random() * 0.08, x: (Math.random() - 0.5) * 13.8, z: 20 + (Math.random() - 0.5) * 8.2 };
+        scene.add(group); pondDuckMeshes.push(group);
     });
 }
 function updatePondDuckMovement() {

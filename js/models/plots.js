@@ -89,15 +89,128 @@ function updatePlotVisual(idx, fullRebuild = false) {
             const elapsed = (Date.now() - plot.plantedAt) / 1000;
             const ratio = Math.min(1.0, elapsed / effTime);
 
-            const cropMat = new THREE.MeshStandardMaterial({ color: ratio >= 1.0 ? 0x22c55e : 0x84cc16 });
-            const plant = new THREE.Mesh(new THREE.ConeGeometry(0.3 + ratio * 0.3, 0.6 + ratio * 0.8, 6), cropMat);
-            plant.position.y = (0.6 + ratio * 0.8) / 2;
-            group.add(plant);
-
+            // UPGRADE 37: crop-specific silhouettes, grounded to the top of the soil tile.
+            // The crop group origin is the soil surface (plot mesh top = y 0.2).
+            const cropKey = String(plot.cropId || '').toLowerCase();
+            const mature = ratio >= 0.82;
+            const growth = 0.92 + Math.min(1, ratio) * 0.62;
+            const leafMat = new THREE.MeshStandardMaterial({ color: mature ? 0x4b9a36 : 0x67ad43, roughness: 0.84 });
+            const darkLeafMat = new THREE.MeshStandardMaterial({ color: 0x286d32, roughness: 0.88 });
+            const stemMat = new THREE.MeshStandardMaterial({ color: 0x397d36, roughness: 0.86 });
+            const produceColors = { tomato: 0xe94343, pumpkin: 0xf28b22, watermelon: 0x2c9c55, strawberry: 0xe83e5a, potato: 0xb98a52, carrot: 0xf47b20, eggplant: 0x7544a8, chili: 0xe63b2e, corn: 0xf4c430, pineapple: 0xdca92c, rice: 0xd9bd55 };
+            const produceMat = new THREE.MeshStandardMaterial({ color: produceColors[cropKey] || 0x85a83d, roughness: 0.62 });
+            const sphere = (x,y,z,sx,sy,sz,mat,rz=0) => {
+                const o = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 10), mat);
+                o.position.set(x,y,z); o.scale.set(sx,sy,sz); o.rotation.z=rz;
+                o.castShadow=true; o.receiveShadow=true; group.add(o); return o;
+            };
+            const blade = (x,y,z,h,w,mat,rz=0) => {
+                const o = new THREE.Mesh(new THREE.ConeGeometry(w,h,6),mat);
+                o.position.set(x,y,z); o.rotation.z=rz; o.castShadow=true; group.add(o); return o;
+            };
+            const stem = (x,z,h,r=0.045) => {
+                const o = new THREE.Mesh(new THREE.CylinderGeometry(r*0.72,r,h,8),stemMat);
+                o.position.set(x,h/2,z); o.castShadow=true; group.add(o); return o;
+            };
+            // Growth changes the size, while crop type determines the silhouette and harvestable produce.
+            if (cropKey === 'rice') {
+                const h=1.22*growth;
+                // A rice plant is a clump of many tillers, not one central stalk.
+                for(let i=0;i<11;i++){
+                    const a=i*Math.PI*2/11, r=(i===0?0:0.11+(i%3)*0.025);
+                    const x=Math.cos(a)*r, z=Math.sin(a)*r;
+                    const stalkH=h*(0.78+(i%4)*0.065);
+                    stem(x,z,stalkH,0.018);
+                    // Long upright blades start low; their tips stay below the grain heads.
+                    for(let j=0;j<2;j++){
+                        const side=j===0?-1:1;
+                        const leafH=0.36*growth+(j%2)*0.06;
+                        const leaf=sphere(x+side*0.045,leafH*0.68,z+side*0.018,0.045,leafH*0.72,0.025,leafMat,side*-0.14);
+                        leaf.rotation.z=side*0.10;
+                    }
+                    if(mature){
+                        const head=new THREE.Group();
+                        const headStem=new THREE.Mesh(new THREE.CylinderGeometry(0.009,0.012,0.23*growth,5),stemMat);
+                        headStem.position.y=0.115*growth; headStem.rotation.z=-0.24; head.add(headStem);
+                        for(let k=0;k<7;k++){
+                            const side=k%2?1:-1;
+                            const grain=sphere(side*(0.018+(k%3)*0.009),0.035*growth+k*0.022*growth,0,0.035*growth,0.046*growth,0.027*growth,produceMat,-0.22);
+                            head.add(grain);
+                        }
+                        head.position.set(x,stalkH-0.02,z);
+                        head.rotation.z=(i%2?1:-1)*0.18;
+                        group.add(head);
+                    }
+                }
+            } else if (cropKey === 'corn') {
+                const h=0.96*growth; stem(0,0,h,0.045);
+                for(let i=0;i<7;i++){
+                    const side=i%2?1:-1, y=0.15+i*0.095;
+                    const leaf=sphere(side*(0.09+i*0.009),y,0,0.16,0.035,0.055,leafMat,side*-0.34);
+                    leaf.rotation.y=side*0.12;
+                }
+                if(mature || ratio>0.55){
+                    sphere(0.075,h*0.58,0.02,0.12,0.25,0.105,produceMat,-0.12);
+                    for(let i=0;i<7;i++) sphere(0.075+(i%2)*0.012,h*0.54-0.13+i*0.035,0.105,0.012,0.026,0.012,new THREE.MeshStandardMaterial({color:0xffe16b,roughness:0.7}));
+                }
+            } else if (cropKey === 'carrot' || cropKey === 'potato') {
+                for(let i=0;i<9;i++){
+                    const a=i*Math.PI*2/9, h=(cropKey==='carrot'?0.48:0.40)*growth;
+                    blade(Math.cos(a)*0.12,h*0.52,Math.sin(a)*0.12,h,0.055,leafMat,Math.cos(a)*0.30);
+                }
+                if(mature){
+                    if(cropKey==='carrot') sphere(0,0.17,0,0.14,0.29,0.13,produceMat,-0.08);
+                    else for(let i=0;i<3;i++) sphere((i-1)*0.105,0.12,(i%2)*0.08,0.105,0.095,0.10,produceMat);
+                }
+            } else if (cropKey === 'pumpkin' || cropKey === 'watermelon' || cropKey === 'strawberry') {
+                // Creeping vine: low horizontal runners, broad leaves, fruit resting close to the soil.
+                for(let i=0;i<7;i++){
+                    const a=i*Math.PI*2/7, r=0.16*growth;
+                    const leaf=sphere(Math.cos(a)*r,0.12*growth,Math.sin(a)*r,0.12*growth,0.025*growth,0.075*growth, i%2?leafMat:darkLeafMat,Math.cos(a)*0.18);
+                    leaf.rotation.y=a;
+                }
+                if(cropKey==='pumpkin' && mature) sphere(0.035,0.22,0.015,0.24,0.20,0.23,produceMat);
+                if(cropKey==='watermelon' && mature) sphere(-0.04,0.20,0.02,0.25,0.18,0.23,produceMat);
+                if(cropKey==='strawberry' && (mature || ratio>0.55)){
+                    for(let i=0;i<4;i++) sphere((i%2?1:-1)*0.11,0.17,((i>>1)?1:-1)*0.08,0.065,0.078,0.065,produceMat);
+                }
+            } else if (cropKey === 'pineapple') {
+                // Short, stout plant with a rosette of long leaves and a central fruit.
+                for(let i=0;i<10;i++){
+                    const a=i*Math.PI*2/10;
+                    const leaf=sphere(Math.cos(a)*0.12,0.16*growth,Math.sin(a)*0.12,0.15,0.035,0.055,leafMat,Math.cos(a)*0.38);
+                    leaf.rotation.y=a;
+                }
+                if(mature || ratio>0.6){
+                    sphere(0,0.34*growth,0,0.145*growth,0.22*growth,0.145*growth,produceMat);
+                    for(let i=0;i<5;i++) blade(Math.cos(i*1.25)*0.035,0.48*growth,Math.sin(i*1.25)*0.035,0.19*growth,0.04,leafMat,Math.cos(i*1.25)*0.2);
+                }
+            } else if (cropKey === 'eggplant' || cropKey === 'chili' || cropKey === 'tomato') {
+                // Upright branching plant, not a creeping vine.
+                const h=(cropKey==='chili'?0.66:0.74)*growth; stem(0,0,h,0.035);
+                for(let i=0;i<8;i++){
+                    const a=i*Math.PI/4, y=0.25*growth+(i%3)*0.12*growth;
+                    sphere(Math.cos(a)*0.14,y,Math.sin(a)*0.14,0.12,0.035,0.075, i%2?leafMat:darkLeafMat,Math.cos(a)*0.25);
+                }
+                if(mature || ratio>0.65){
+                    const count=cropKey==='tomato'?5:(cropKey==='chili'?5:2);
+                    for(let i=0;i<count;i++){
+                        const a=i*Math.PI*2/count;
+                        if(cropKey==='eggplant') sphere(Math.cos(a)*0.14,0.48*growth,Math.sin(a)*0.14,0.085,0.19,0.085,produceMat,0.25);
+                        else if(cropKey==='chili') sphere(Math.cos(a)*0.14,0.43*growth,Math.sin(a)*0.14,0.035,0.13,0.035,produceMat,0.35);
+                        else sphere(Math.cos(a)*0.14,0.49*growth,Math.sin(a)*0.14,0.085,0.085,0.085,produceMat);
+                    }
+                }
+            } else {
+                // Safe fallback for any additional crop IDs.
+                const h=0.62*growth; stem(0,0,h,0.035);
+                for(let i=0;i<6;i++){ const a=i*Math.PI/3; sphere(Math.cos(a)*0.12,0.24*growth,Math.sin(a)*0.12,0.12,0.035,0.07,leafMat,Math.cos(a)*0.2); }
+                if(mature) sphere(0,0.30,0,0.14,0.15,0.14,produceMat);
+            }
             if (plot.hasPest) {
                 const pestMat = new THREE.MeshBasicMaterial({ color: 0x9333ea });
                 const pest = new THREE.Mesh(new THREE.SphereGeometry(0.18, 8, 8), pestMat);
-                pest.position.set(0, 0.8 + ratio * 0.8, 0);
+                pest.position.set(0, 0.72 + ratio * 0.35, 0);
                 group.add(pest);
             }
         }
