@@ -11,7 +11,7 @@ function init3DScene() {
     camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.set(0, 28, 35);
 
-    renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+    renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "default" });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(1);
 
@@ -34,8 +34,9 @@ function init3DScene() {
     sunLight.position.set(30, 50, 25);
     sunLight.castShadow = true;
     
-    sunLight.shadow.mapSize.width = 512;
-    sunLight.shadow.mapSize.height = 512;
+    const shadowSize = (window.matchMedia && window.matchMedia("(pointer: coarse)").matches) ? 256 : 512;
+    sunLight.shadow.mapSize.width = shadowSize;
+    sunLight.shadow.mapSize.height = shadowSize;
     sunLight.shadow.camera.near = 0.5;
     sunLight.shadow.camera.far = 150;
     const d = 45;

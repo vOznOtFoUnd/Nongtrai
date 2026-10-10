@@ -25,6 +25,133 @@ let farmWindNextChange = 0;
 let farmWindGustUntil = 0;
 const farmWind = { angle: 0.35, targetAngle: 0.35, strength: 0.24, targetStrength: 0.24, gustStrength: 0 };
 
+
+// UPGRADE 41 — Chibi Environment Foundation
+// Decorative-only layer: never receives gameplay raycasts and never changes
+// crop/plot positions, collision zones, save data, or gameplay state.
+let farmGroundDetails = [];
+
+function addNonBlockingMesh(mesh) {
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    mesh.raycast = () => {};
+    mesh.userData = Object.assign({}, mesh.userData, { decorative: true, nonBlocking: true });
+    scene.add(mesh);
+    farmGroundDetails.push(mesh);
+    return mesh;
+}
+
+function createChibiPebbleCluster(x, z, scale = 1) {
+    const group = new THREE.Group();
+    group.position.set(x, 0, z);
+    group.scale.setScalar(scale);
+    const mats = [
+        new THREE.MeshStandardMaterial({ color: 0x8b8176, roughness: 0.95 }),
+        new THREE.MeshStandardMaterial({ color: 0xa79b8c, roughness: 0.95 }),
+        new THREE.MeshStandardMaterial({ color: 0x6f665d, roughness: 0.98 })
+    ];
+    const sizes = [
+        [0.18, 0.09, 0.15], [0.13, 0.07, 0.11], [0.10, 0.06, 0.09]
+    ];
+    sizes.forEach((size, i) => {
+        const pebble = new THREE.Mesh(new THREE.IcosahedronGeometry(1, 0), mats[i]);
+        pebble.position.set((i - 1) * 0.16, size[1] * 0.72, (i % 2) * 0.10 - 0.05);
+        pebble.scale.set(size[0], size[1], size[2]);
+        pebble.rotation.set(0.2 + i * 0.3, i * 0.7, 0.15 - i * 0.12);
+        group.add(pebble);
+    });
+    group.traverse(obj => { if (obj.isMesh) obj.raycast = () => {}; });
+    scene.add(group);
+    farmGroundDetails.push(group);
+    return group;
+}
+
+function createChibiGrassClump(x, z, scale = 1, flower = false) {
+    const group = new THREE.Group();
+    group.position.set(x, 0, z);
+    group.scale.setScalar(scale);
+    const grassMats = [
+        new THREE.MeshStandardMaterial({ color: 0x55a85a, roughness: 0.88 }),
+        new THREE.MeshStandardMaterial({ color: 0x78bd63, roughness: 0.86 }),
+        new THREE.MeshStandardMaterial({ color: 0x3f8f4e, roughness: 0.9 })
+    ];
+    for (let i = 0; i < 5; i++) {
+        const blade = new THREE.Mesh(new THREE.ConeGeometry(0.045, 0.30 + (i % 3) * 0.06, 5), grassMats[i % grassMats.length]);
+        const a = (i / 5) * Math.PI * 2;
+        blade.position.set(Math.cos(a) * 0.055, 0.16 + (i % 2) * 0.025, Math.sin(a) * 0.055);
+        blade.rotation.z = Math.cos(a) * 0.22;
+        blade.rotation.x = Math.sin(a) * 0.16;
+        group.add(blade);
+    }
+    if (flower) {
+        const center = new THREE.Mesh(
+            new THREE.SphereGeometry(0.055, 7, 5),
+            new THREE.MeshStandardMaterial({ color: 0xf6c453, roughness: 0.7 })
+        );
+        center.position.y = 0.42;
+        group.add(center);
+        const petalMat = new THREE.MeshStandardMaterial({ color: [0xf7a8c4, 0xf8d36b, 0xb8a5f5][Math.floor(Math.random() * 3)], roughness: 0.76 });
+        for (let i = 0; i < 4; i++) {
+            const petal = new THREE.Mesh(new THREE.SphereGeometry(0.065, 7, 5), petalMat);
+            const a = i * Math.PI / 2;
+            petal.position.set(Math.cos(a) * 0.075, 0.42, Math.sin(a) * 0.075);
+            petal.scale.set(0.85, 0.42, 0.85);
+            group.add(petal);
+        }
+    }
+    group.traverse(obj => { if (obj.isMesh) { obj.castShadow = true; obj.raycast = () => {}; } });
+    scene.add(group);
+    farmGroundDetails.push(group);
+    return group;
+}
+
+function createGroundEdgeTuft(x, z, rotation = 0, scale = 1) {
+    const group = new THREE.Group();
+    group.position.set(x, 0, z);
+    group.rotation.y = rotation;
+    group.scale.setScalar(scale);
+    const mat = new THREE.MeshStandardMaterial({ color: 0x6daf5c, roughness: 0.9 });
+    for (let i = 0; i < 4; i++) {
+        const blade = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.55 + i * 0.04, 5), mat);
+        blade.position.set((i - 1.5) * 0.13, 0.27, (i % 2 ? 0.05 : -0.04));
+        blade.rotation.z = (i - 1.5) * 0.14;
+        group.add(blade);
+    }
+    group.traverse(obj => { if (obj.isMesh) obj.raycast = () => {}; });
+    scene.add(group);
+    farmGroundDetails.push(group);
+    return group;
+}
+
+function buildChibiGroundDetails() {
+    farmGroundDetails.forEach(obj => { if (obj && obj.parent) obj.parent.remove(obj); });
+    farmGroundDetails = [];
+
+    // Soft decorative meadow patches stay well outside the crop grid and interactable zones.
+    const grassSpots = [
+        [-28, -18, 1.0], [-27, 10, 0.9], [-22, 28, 1.05], [-7, 29, 0.85],
+        [9, 29, 0.95], [24, 28, 1.05], [29, 12, 0.9], [29, -8, 1.0],
+        [27, -27, 0.9], [10, -29, 0.85], [-5, -29, 1.0], [-27, -29, 0.95],
+        [-31, -2, 0.9], [30, 2, 0.85], [-22, 17, 0.8], [22, 15, 0.9]
+    ];
+    grassSpots.forEach(([x, z, s], i) => createChibiGrassClump(x, z, s, i % 3 === 0));
+
+    // A few small clusters create a hand-placed, non-uniform silhouette around the island.
+    const pebbleSpots = [
+        [-31, -20, 1.1], [-30, 22, 0.9], [-18, 30, 0.85], [18, 30, 1.0],
+        [31, 21, 0.85], [31, -20, 1.0], [18, -31, 0.9], [-17, -31, 1.0],
+        [-32, 8, 0.8], [32, 7, 0.8], [25, 31, 0.7], [-25, 31, 0.75]
+    ];
+    pebbleSpots.forEach(([x, z, s]) => createChibiPebbleCluster(x, z, s));
+
+    // Taller grass at selected island edges gives the flat ground a softer chibi silhouette.
+    [
+        [-33.0, -14, 0.0, 0.9], [-33.0, 12, 0.1, 0.85], [33.0, -13, Math.PI, 0.9],
+        [33.0, 12, Math.PI, 0.85], [-14, 33.0, Math.PI / 2, 0.8], [13, 33.0, Math.PI / 2, 0.9],
+        [-14, -33.0, -Math.PI / 2, 0.85], [13, -33.0, -Math.PI / 2, 0.8]
+    ].forEach(([x, z, r, s]) => createGroundEdgeTuft(x, z, r, s));
+}
+
 function buildEnvironmentDecorations() {
     // 1. Mặt trời
     const sunGeo = new THREE.SphereGeometry(3.5, 16, 16);
@@ -120,7 +247,7 @@ function buildEnvironmentDecorations() {
     // 4. Cỏ dại & Đá
     const grassMat = new THREE.MeshStandardMaterial({ color: 0x4ade80, roughness: 0.8 });
     farmGrassPatches = [];
-    for (let g = 0; g < 35; g++) {
+    for (let g = 0; g < 48; g++) {
         const rx = (Math.random() - 0.5) * 50;
         const rz = (Math.random() - 0.5) * 50;
         if (isLocationFree(rx, rz)) {
@@ -138,7 +265,7 @@ function buildEnvironmentDecorations() {
     }
 
     const rockMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.9 });
-    for (let r = 0; r < 20; r++) {
+    for (let r = 0; r < 24; r++) {
         const rx = (Math.random() - 0.5) * 50;
         const rz = (Math.random() - 0.5) * 50;
         if (isLocationFree(rx, rz)) {
@@ -484,6 +611,9 @@ function buildMinigameMats() {
     const roadTopMat = new THREE.MeshStandardMaterial({ map: dirtTexture, color: 0xffffff, roughness: 1 });
     const roadSideMat = new THREE.MeshStandardMaterial({ color: 0x80552f, roughness: 1 });
     const pathMats = [roadSideMat, roadSideMat, roadTopMat, roadSideMat, roadSideMat, roadSideMat];
+    // UPGRADE 42: road network visual rework. Existing path meshes remain the
+    // walkable/raycast surfaces; a soft shoulder + rounded junction/cap visuals
+    // are layered underneath so the road reads as one continuous chibi path.
     const paths = [
         {x:6,z:8,w:2.2,d:12}, {x:3,z:8,w:8,d:2.2},
         {x:8,z:4,w:2.0,d:10}, {x:10.5,z:-1,w:5,d:2.0}, {x:13,z:-3,w:2.0,d:10},
@@ -493,60 +623,118 @@ function buildMinigameMats() {
         {x:-12,z:-14,w:5,d:2.0}, {x:-9.5,z:-15,w:2.0,d:10}, {x:-10.5,z:-20,w:8,d:2.0},
         {x:30.5,z:14,w:1.5,d:14}, {x:22.5,z:2,w:3,d:2.0}
     ];
+
+    const roadShoulderMat = new THREE.MeshStandardMaterial({ color: 0x8b5a35, roughness: 1 });
+    const roadEdgeMat = new THREE.MeshStandardMaterial({ color: 0x9f6b40, roughness: 1 });
+    const roadVisual = new THREE.Group();
+    roadVisual.name = 'chibiRoadVisual';
+
+    const addRoundPatch = (x, z, radius, material, y) => {
+        const patch = new THREE.Mesh(new THREE.CircleGeometry(radius, 24), material);
+        patch.rotation.x = -Math.PI / 2;
+        patch.position.set(x, y, z);
+        patch.receiveShadow = true;
+        patch.raycast = () => {};
+        roadVisual.add(patch);
+    };
+
+    // Slightly wider shoulder makes adjacent segments visually merge.
+    paths.forEach(({x,z,w,d}) => {
+        const shoulder = new THREE.Mesh(new THREE.BoxGeometry(w + 0.30, 0.035, d + 0.30), roadShoulderMat);
+        shoulder.position.set(x, 0.014, z);
+        shoulder.receiveShadow = true;
+        shoulder.raycast = () => {};
+        roadVisual.add(shoulder);
+
+        const edge = new THREE.Mesh(new THREE.BoxGeometry(w + 0.10, 0.018, d + 0.10), roadEdgeMat);
+        edge.position.set(x, 0.033, z);
+        edge.receiveShadow = true;
+        edge.raycast = () => {};
+        roadVisual.add(edge);
+
+        // Rounded caps/ends hide the hard rectangular seams at turns and dead ends.
+        const r = Math.min(w, d) * 0.52;
+        if (d > w) {
+            addRoundPatch(x, z - d / 2, r + 0.15, roadShoulderMat, 0.015);
+            addRoundPatch(x, z + d / 2, r + 0.15, roadShoulderMat, 0.015);
+        } else {
+            addRoundPatch(x - w / 2, z, r + 0.15, roadShoulderMat, 0.015);
+            addRoundPatch(x + w / 2, z, r + 0.15, roadShoulderMat, 0.015);
+        }
+    });
+
+    // Explicit junctions where several legacy segments meet.
+    [
+        [3,8,1.55],[12,8,1.45],[10.5,-1,1.25],[14,-9.5,1.30],
+        [-18,-13.5,1.20],[-18,5.5,1.20],[-10.5,-20,1.15],[22.5,2,1.15]
+    ].forEach(([x,z,r]) => addRoundPatch(x, z, r, roadShoulderMat, 0.016));
+
+    scene.add(roadVisual);
+
     paths.forEach(({x,z,w,d})=>{
         const path = new THREE.Mesh(new THREE.BoxGeometry(w, 0.045, d), pathMats);
-        path.position.set(x, 0.023, z); path.receiveShadow = true; path.castShadow = false;
-        // Quan trọng: đường là bề mặt đi được và được raycast nhận diện giống mặt đất.
+        path.position.set(x, 0.040, z); path.receiveShadow = true; path.castShadow = false;
+        // Keep the exact existing gameplay contract: path remains walkable and raycastable.
         path.userData = { type: 'path', walkable: true };
         scene.add(path);
     });
-    // Các mảng bo mềm ở một số giao lộ, phủ cùng texture đất để đường liền mạch hơn.
-    [{x:3,z:8,r:1.05},{x:12,z:8,r:1.0},{x:10.5,z:-1,r:0.9},{x:-18,z:-13.5,r:0.85},{x:-18,z:5.5,r:0.85}].forEach(({x,z,r})=>{
-        const patch = new THREE.Mesh(new THREE.CircleGeometry(r, 20), roadTopMat);
-        patch.rotation.x = -Math.PI / 2; patch.position.set(x, 0.049, z); patch.userData = { type: 'path', walkable: true };
-        patch.receiveShadow = true; scene.add(patch);
-    });
-
     // Bầu cua cũng mở từ nút Giải trí, không chiếm diện tích bản đồ.
 
-    // Xe hàng 3D với tên rõ ràng và vùng tương tác lớn.
-    const market=new THREE.Group();market.position.set(-2,0,11.8);
-    const wood=new THREE.MeshStandardMaterial({color:0x92400e,roughness:0.8});
-    const green=new THREE.MeshStandardMaterial({color:0x166534,roughness:0.7});
-    const body=new THREE.Mesh(new THREE.BoxGeometry(3.5,0.85,2.0),wood);body.position.set(0,0.85,0);body.userData={type:'market_sign'};market.add(body);
-    const counter=new THREE.Mesh(new THREE.BoxGeometry(3.7,0.14,2.15),new THREE.MeshStandardMaterial({color:0xfbbf24,roughness:0.6}));counter.position.set(0,1.34,0);counter.userData={type:'market_sign'};market.add(counter);
-    for(const wx of [-1.25,1.25]) {const wheel=new THREE.Mesh(new THREE.CylinderGeometry(0.38,0.38,0.18,16),new THREE.MeshStandardMaterial({color:0x292524,roughness:0.9}));wheel.rotation.z=Math.PI/2;wheel.position.set(wx,0.42,0.82);wheel.userData={type:'market_sign'};market.add(wheel);}
-    const canopy=new THREE.Mesh(new THREE.BoxGeometry(3.8,0.18,2.25),green);canopy.position.set(0,2.15,-0.05);canopy.userData={type:'market_sign'};market.add(canopy);
-    const signFace=new THREE.Mesh(new THREE.BoxGeometry(3.2,0.75,0.12),green);signFace.position.set(0,1.8,1.02);signFace.userData={type:'market_sign'};market.add(signFace);
-    const signText=new THREE.Mesh(new THREE.PlaneGeometry(3.0,0.62),new THREE.MeshBasicMaterial({map:makeFarmSignTexture('SẠP CHỢ','NHẤN ĐỂ GIAO ĐƠN','#166534')}));signText.position.set(0,1.8,1.09);signText.userData={type:'market_sign'};market.add(signText);
-    [0xdc2626,0xf59e0b,0x65a30d,0x9333ea].forEach((c,i)=>{const fruit=new THREE.Mesh(new THREE.SphereGeometry(0.22,10,8),new THREE.MeshStandardMaterial({color:c,roughness:0.55}));fruit.position.set(-1.0+i*0.65,1.52,0.35);fruit.userData={type:'market_sign'};market.add(fruit);});
-    market.userData={type:'market_sign'};scene.add(market);
+    // UPGRADE 43: sạp bán hàng chibi mới, đặt giữa chuồng gà (-20,-18) và chuồng bò (-20,10).
+    // Giữ nguyên type market_sign để không thay đổi luồng tương tác.
+    const market = new THREE.Group();
+    market.position.set(-20, 0, -4);
+    market.name = 'chibiMarketStall';
 
-    // UPGRADE 30: nhãn khu vực chibi pastel, tương phản cao và đặt cao hơn để đỡ che cảnh trên điện thoại.
-    function addAreaWorldLabel(title, emoji, x, z, width = 5.2) {
-        const canvas = document.createElement('canvas'); canvas.width = 1024; canvas.height = 240;
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        const rr = (x,y,w,h,r) => { ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); };
-        // Viền ngoài đậm giúp nhãn vẫn rõ khi nền game sáng hoặc nhiều chi tiết.
-        ctx.shadowColor = 'rgba(24, 39, 56, 0.34)'; ctx.shadowBlur = 22; ctx.shadowOffsetY = 10;
-        rr(20, 20, 984, 200, 58); ctx.fillStyle = '#fffaf0'; ctx.fill(); ctx.shadowColor = 'transparent';
-        ctx.lineWidth = 12; ctx.strokeStyle = '#d977a5'; ctx.stroke();
-        ctx.lineWidth = 4; ctx.strokeStyle = '#ffffff'; rr(31, 31, 962, 178, 48); ctx.stroke();
-        const pill = ctx.createLinearGradient(42, 42, 190, 190); pill.addColorStop(0, '#dff7e8'); pill.addColorStop(1, '#b8ead0');
-        rr(48, 48, 148, 144, 42); ctx.fillStyle = pill; ctx.fill();
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = '76px sans-serif';
-        ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.strokeText(emoji, 122, 120); ctx.fillStyle = '#42536b'; ctx.fillText(emoji, 122, 120);
-        ctx.textAlign = 'center'; ctx.fillStyle = '#26384a'; ctx.font = '900 56px sans-serif';
-        ctx.lineWidth = 7; ctx.strokeStyle = '#fffaf0'; ctx.strokeText(title, 610, 121, 760); ctx.fillText(title, 610, 121, 760);
-        const texture = new THREE.CanvasTexture(canvas); texture.anisotropy = 4;
-        const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false, depthWrite: false, sizeAttenuation: true }));
-        sprite.position.set(x, 5.8, z); sprite.scale.set(width, 1.38, 1); sprite.userData = { type: 'area_label' }; sprite.raycast = () => {}; scene.add(sprite);
-    }
-    addAreaWorldLabel('KHU TRỒNG TRỌT', '🌱', -4.2, -3.5, 5.8);
-    addAreaWorldLabel('VƯỜN CÂY ĂN QUẢ', '🍑', 18, -4.2, 6.0);
-    addAreaWorldLabel('AO CÁ & VỊT', '🦆', 0, 20, 4.8);
-    addAreaWorldLabel('SẠP CHỢ', '🧺', -2, 11.8, 3.5);
+    const marketWood = new THREE.MeshStandardMaterial({ color: 0x8b5a36, roughness: 0.78 });
+    const marketWoodDark = new THREE.MeshStandardMaterial({ color: 0x5f3b25, roughness: 0.88 });
+    const marketCream = new THREE.MeshStandardMaterial({ color: 0xffe6a7, roughness: 0.72 });
+    const marketRoof = new THREE.MeshStandardMaterial({ color: 0xe86f51, roughness: 0.7 });
+    const marketRoofDark = new THREE.MeshStandardMaterial({ color: 0xc84f3d, roughness: 0.78 });
+    const basketMat = new THREE.MeshStandardMaterial({ color: 0xd69b4d, roughness: 0.82 });
+    const leafMat = new THREE.MeshStandardMaterial({ color: 0x4f9d45, roughness: 0.82 });
+    const fruitMats = [0xdc4a3d, 0xf0ad3d, 0x7aa84a, 0xb94b7d].map(c => new THREE.MeshStandardMaterial({ color:c, roughness:0.6 }));
+    const mark = (obj) => { obj.userData = { type:'market_sign' }; obj.castShadow = true; obj.receiveShadow = true; return obj; };
+
+    // Bệ quầy và mặt bàn bo kiểu chibi.
+    const base = mark(new THREE.Mesh(new THREE.BoxGeometry(3.8, 0.18, 2.05), marketWoodDark)); base.position.y = 0.28; market.add(base);
+    const counter = mark(new THREE.Mesh(new THREE.BoxGeometry(3.65, 0.22, 1.92), marketCream)); counter.position.set(0, 1.18, 0.02); market.add(counter);
+    const front = mark(new THREE.Mesh(new THREE.BoxGeometry(3.55, 0.78, 0.16), marketWood)); front.position.set(0,0.72,0.86); market.add(front);
+
+    // Bốn trụ gỗ, xà ngang và mái hai tầng.
+    [-1.58,1.58].forEach(x => {
+        [-0.76,0.76].forEach(z => {
+            const post = mark(new THREE.Mesh(new THREE.CylinderGeometry(0.105,0.13,2.35,8), marketWoodDark)); post.position.set(x,1.55,z); market.add(post);
+        });
+    });
+    const beamFront = mark(new THREE.Mesh(new THREE.BoxGeometry(3.55,0.16,0.16), marketWoodDark)); beamFront.position.set(0,2.55,0.78); market.add(beamFront);
+    const beamBack = mark(new THREE.Mesh(new THREE.BoxGeometry(3.55,0.16,0.16), marketWoodDark)); beamBack.position.set(0,2.55,-0.78); market.add(beamBack);
+    const roofMain = mark(new THREE.Mesh(new THREE.BoxGeometry(4.05,0.22,2.32), marketRoof)); roofMain.position.set(0,2.72,0); roofMain.rotation.z=0; market.add(roofMain);
+    const roofTrim = mark(new THREE.Mesh(new THREE.BoxGeometry(4.18,0.12,2.42), marketRoofDark)); roofTrim.position.set(0,2.58,0); market.add(roofTrim);
+
+    // Mái nhỏ phía trước + bảng hiệu, tạo silhouette nhận ra sạp từ xa.
+    const awning = mark(new THREE.Mesh(new THREE.BoxGeometry(3.82,0.16,0.52), marketCream)); awning.position.set(0,2.36,0.93); awning.rotation.x=-0.12; market.add(awning);
+    const signBoard = mark(new THREE.Mesh(new THREE.BoxGeometry(2.65,0.58,0.12), marketWoodDark)); signBoard.position.set(0,2.06,0.91); market.add(signBoard);
+    const signText = mark(new THREE.Mesh(new THREE.PlaneGeometry(2.38,0.43), new THREE.MeshBasicMaterial({ map:makeFarmSignTexture('SẠP NÔNG SẢN','BÁN • ĐỔI • GIAO','#8b5a36'), transparent:true })));
+    signText.position.set(0,2.06,0.985); market.add(signText);
+
+    // Hộp/giỏ hàng trưng bày.
+    [-1.25,-0.42,0.42,1.25].forEach((x,i)=>{
+        const basket = mark(new THREE.Mesh(new THREE.BoxGeometry(0.58,0.25,0.52), basketMat)); basket.position.set(x,1.40,0.18); market.add(basket);
+        const produce = mark(new THREE.Mesh(new THREE.SphereGeometry(0.15,10,8), fruitMats[i])); produce.position.set(x,1.61,0.18); market.add(produce);
+        const leaf = mark(new THREE.Mesh(new THREE.SphereGeometry(0.06,7,6), leafMat)); leaf.position.set(x+0.08,1.69,0.18); leaf.scale.set(1,0.55,1); market.add(leaf);
+    });
+    const crate = mark(new THREE.Mesh(new THREE.BoxGeometry(0.9,0.5,0.65), basketMat)); crate.position.set(-1.25,0.67,-0.2); market.add(crate);
+    const crate2 = mark(new THREE.Mesh(new THREE.BoxGeometry(0.72,0.38,0.58), marketWood)); crate2.position.set(1.18,0.61,-0.22); market.add(crate2);
+
+    // Hai đèn/lồng nhỏ để model có chiều sâu mà không cần UI label.
+    [-1.48,1.48].forEach(x=>{
+        const lantern = mark(new THREE.Mesh(new THREE.SphereGeometry(0.14,10,8), new THREE.MeshStandardMaterial({color:0xffd166, emissive:0x5a3a12, emissiveIntensity:0.28, roughness:0.5})));
+        lantern.position.set(x,2.2,0.83); market.add(lantern);
+    });
+    market.userData = { type:'market_sign' };
+    market.traverse(o => { if (o.isMesh && (!o.userData || !o.userData.type)) o.userData={type:'market_sign'}; o.raycast = o.raycast || undefined; });
+    scene.add(market);
 
     // NPC bù nhìn cạnh ruộng: tương tác để mở chung bảng mở khóa/nâng cấp ô đất.
     const strawman = new THREE.Group(); strawman.position.set(-15.5, 0, -8.5);
