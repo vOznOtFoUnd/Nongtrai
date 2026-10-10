@@ -60,7 +60,7 @@ let gameState = {
     playerName: 'Chibi Farmer',
     // Counters added in UPGRADE 16. Older saves start at zero where no reliable history exists.
     statistics: { animalsSold: 0, mealsCooked: 0, playTimeSeconds: 0, animalSicknessEvents: 0, cropsPlanted: 0 },
-    settings: { sound: true, music: true }
+    settings: { sound: true, music: true, soundVolume: 0.65, musicVolume: 0.3 }
 };
 
 // Mở khóa 6 ô đất đầu tiên mặc định
@@ -190,9 +190,10 @@ function normalizeLoadedGameState(state) {
         const value = Number(state.statistics[key]);
         state.statistics[key] = Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
     });
-    if (!isPlainObject(state.settings)) state.settings = { sound: true, music: true };
+    if (!isPlainObject(state.settings)) state.settings = { sound: true, music: true, soundVolume: 0.65, musicVolume: 0.3 };
     state.settings.sound = state.settings.sound !== false;
     state.settings.music = state.settings.music !== false;
+    ['soundVolume', 'musicVolume'].forEach(key => { const value = Number(state.settings[key]); state.settings[key] = Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : (key === 'soundVolume' ? 0.65 : 0.3); });
     if (typeof state.playerName !== 'string' || !state.playerName.trim()) state.playerName = 'Chibi Farmer';
     state.playerName = state.playerName.slice(0, 24);
     if (!isPlainObject(state.fishPond)) state.fishPond = cloneGameValue(INITIAL_GAME_STATE.fishPond);
@@ -458,5 +459,6 @@ function ensureMarketOrderTimers() {
 function replaceMarketOrderAt(index) {
     if (!Array.isArray(gameState.marketOrders) || index < 0 || index >= gameState.marketOrders.length) return;
     gameState.marketOrders[index] = createMarketOrder();
+    if (typeof playFarmSound === 'function') playFarmSound('order');
     if (typeof saveGame === 'function') saveGame();
 }
