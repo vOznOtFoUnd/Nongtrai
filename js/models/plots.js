@@ -1,3 +1,105 @@
+
+// UPGRADE 42: stylized soil visuals are children of the existing plot hitbox.
+// The hitbox/index/click contract stays unchanged; only its rendered surface changes.
+function createRoundedSoilTop(width = 1.82, depth = 1.82, radius = 0.18) {
+    const shape = new THREE.Shape();
+    const x = width / 2, z = depth / 2, r = Math.min(radius, width / 2, depth / 2);
+    shape.moveTo(-x + r, -z);
+    shape.lineTo(x - r, -z);
+    shape.quadraticCurveTo(x, -z, x, -z + r);
+    shape.lineTo(x, z - r);
+    shape.quadraticCurveTo(x, z, x - r, z);
+    shape.lineTo(-x + r, z);
+    shape.quadraticCurveTo(-x, z, -x, z - r);
+    shape.lineTo(-x, -z + r);
+    shape.quadraticCurveTo(-x, -z, -x + r, -z);
+    const geo = new THREE.ShapeGeometry(shape, 3);
+    const mat = new THREE.MeshStandardMaterial({ color: 0xb97943, roughness: 0.96, metalness: 0 });
+    const top = new THREE.Mesh(geo, mat);
+    top.rotation.x = -Math.PI / 2;
+    top.position.y = 0.104;
+    top.name = 'soilTop';
+    top.receiveShadow = true;
+    top.raycast = () => {};
+    return top;
+}
+
+function addSoilVisualToPlot(plotMesh, unlocked) {
+    if (!plotMesh || plotMesh.userData.soilVisual) return;
+    const soil = new THREE.Group();
+    soil.name = 'chibiSoilVisual';
+
+    const base = new THREE.Mesh(
+        new THREE.BoxGeometry(1.86, 0.18, 1.86),
+        new THREE.MeshStandardMaterial({ color: unlocked ? 0x9a5d34 : 0x3f4750, roughness: 0.98 })
+    );
+    base.name = 'soilBase'; base.position.y = 0.01; base.receiveShadow = true; base.castShadow = true; base.raycast = () => {};
+    soil.add(base);
+
+    const top = createRoundedSoilTop();
+    soil.add(top);
+
+    const rim = new THREE.Mesh(
+        new THREE.RingGeometry(0.83, 0.91, 4),
+        new THREE.MeshStandardMaterial({ color: unlocked ? 0x7d4a2b : 0x64707b, roughness: 0.92, side: THREE.DoubleSide })
+    );
+    rim.rotation.x = -Math.PI / 2; rim.position.y = 0.109; rim.scale.set(1, 1, 1); rim.name = 'soilStatusRim'; rim.raycast = () => {};
+    soil.add(rim);
+
+    const detailMat = new THREE.MeshStandardMaterial({ color: 0x754522, roughness: 1 });
+    const lightDetailMat = new THREE.MeshStandardMaterial({ color: 0xc58a55, roughness: 1 });
+    [-0.48, 0, 0.48].forEach((z, i) => {
+        const furrow = new THREE.Mesh(new THREE.BoxGeometry(1.28, 0.018, 0.055), detailMat);
+        furrow.position.set((i - 1) * 0.025, 0.115, z); furrow.rotation.y = (i - 1) * 0.035; furrow.name = `soilFurrow${i + 1}`; furrow.raycast = () => {}; soil.add(furrow);
+    });
+    [[-0.63,-0.62],[0.57,-0.34],[-0.52,0.36],[0.48,0.58]].forEach(([x,z], i) => {
+        const clod = new THREE.Mesh(new THREE.IcosahedronGeometry(0.045 + (i % 2) * 0.012, 0), lightDetailMat);
+        clod.position.set(x, 0.128, z); clod.scale.set(1.35, 0.55, 0.8); clod.name = `soilClod${i + 1}`; clod.raycast = () => {}; soil.add(clod);
+    });
+
+    // Trạng thái khóa: huy hiệu khóa nhỏ, chỉ là visual nên không chặn click.
+    const lockGroup = new THREE.Group(); lockGroup.name = 'soilLockBadge'; lockGroup.position.set(0.61, 0.18, 0.61);
+    const lockBody = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.18, 0.14), new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.72 }));
+    lockBody.position.y = 0.02; lockBody.raycast = () => {}; lockGroup.add(lockBody);
+    const shackle = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.026, 6, 12, Math.PI), new THREE.MeshStandardMaterial({ color: 0xcbd5e1, roughness: 0.62 }));
+    shackle.rotation.x = Math.PI / 2; shackle.position.y = 0.12; shackle.raycast = () => {}; lockGroup.add(shackle);
+    lockGroup.raycast = () => {}; soil.add(lockGroup);
+
+    // Trạng thái ướt: phủ xanh đậm lên toàn bộ mặt đất + các vệt ẩm bóng.
+    // Lớp này là visual thật, không dùng hitbox trong suốt để biểu diễn trạng thái.
+    const wetGroup = new THREE.Group(); wetGroup.name = 'soilWetDetails'; wetGroup.visible = false;
+    const wetShape = new THREE.Shape();
+    const wetW = 1.82 / 2, wetD = 1.82 / 2, wetR = 0.18;
+    wetShape.moveTo(-wetW + wetR, -wetD);
+    wetShape.lineTo(wetW - wetR, -wetD);
+    wetShape.quadraticCurveTo(wetW, -wetD, wetW, -wetD + wetR);
+    wetShape.lineTo(wetW, wetD - wetR);
+    wetShape.quadraticCurveTo(wetW, wetD, wetW - wetR, wetD);
+    wetShape.lineTo(-wetW + wetR, wetD);
+    wetShape.quadraticCurveTo(-wetW, wetD, -wetW, wetD - wetR);
+    wetShape.lineTo(-wetW, -wetD + wetR);
+    wetShape.quadraticCurveTo(-wetW, -wetD, -wetW + wetR, -wetD);
+    const wetSurface = new THREE.Mesh(
+        new THREE.ShapeGeometry(wetShape, 3),
+        new THREE.MeshStandardMaterial({ color: 0x063a63, roughness: 0.28, metalness: 0.04, transparent: true, opacity: 0.82, side: THREE.DoubleSide })
+    );
+    wetSurface.rotation.x = -Math.PI / 2;
+    wetSurface.position.y = 0.122;
+    wetSurface.name = 'soilWetSurface';
+    wetSurface.receiveShadow = true;
+    wetSurface.raycast = () => {};
+    wetGroup.add(wetSurface);
+    const wetMat = new THREE.MeshStandardMaterial({ color: 0x1f5f8b, roughness: 0.2, metalness: 0.05, transparent: true, opacity: 0.86 });
+    [[-0.48,-0.2,0.24,0.08],[0.02,0.28,0.34,0.075],[0.45,-0.52,0.18,0.06]].forEach(([x,z,sx,sy]) => {
+        const puddle = new THREE.Mesh(new THREE.CircleGeometry(1, 12), wetMat);
+        puddle.rotation.x = -Math.PI / 2; puddle.position.set(x, 0.121, z); puddle.scale.set(sx, sy, 1); puddle.raycast = () => {}; wetGroup.add(puddle);
+    });
+    soil.add(wetGroup);
+
+    plotMesh.add(soil); plotMesh.userData.soilVisual = soil;
+}
+
+
 // Xây dựng Lưới 48 Ô Đất
 function buildPlotsGrid() {
     plotMeshes = [];
@@ -14,12 +116,15 @@ function buildPlotsGrid() {
         const isUnlocked = !!(gameState.unlockedPlots && gameState.unlockedPlots[i]);
         const plotMesh = new THREE.Mesh(
             new THREE.BoxGeometry(1.8, 0.2, 1.8),
-            new THREE.MeshStandardMaterial({ color: isUnlocked ? 0xc28544 : 0x475569, roughness: 0.9 })
+            // Invisible gameplay hitbox: visual soil is attached as a child below.
+            new THREE.MeshStandardMaterial({ color: isUnlocked ? 0xc28544 : 0x475569, roughness: 0.9, transparent: true, opacity: 0 })
         );
         plotMesh.position.set(posX, 0.1, posZ);
+        addSoilVisualToPlot(plotMesh, isUnlocked);
         plotMesh.receiveShadow = true;
         plotMesh.castShadow = true;
-        plotMesh.userData = { type: 'plot', index: i };
+        plotMesh.userData.type = 'plot';
+        plotMesh.userData.index = i;
         scene.add(plotMesh);
 
         plotMeshes.push(plotMesh);
@@ -46,18 +151,64 @@ function buildPlotsGrid() {
 function updatePlotColorsByLevel() {
     if (!Array.isArray(plotMeshes)) return;
     plotMeshes.forEach((mesh, i) => {
-        if (!gameState.unlockedPlots[i]) {
-            const groupIndex = Math.floor(i / 6);
-            const unlockLevelReq = groupIndex * 10;
+        const plot = gameState.plots?.[i] || {};
+        const unlocked = !!gameState.unlockedPlots[i];
+        const req = Math.floor(i / 6) * 10;
+        const levelReady = gameState.level >= req;
+        const wet = unlocked && !!plot.watered;
+        const soil = mesh.userData && mesh.userData.soilVisual;
+        const base = soil?.getObjectByName('soilBase');
+        const top = soil?.getObjectByName('soilTop');
+        const rim = soil?.getObjectByName('soilStatusRim');
+        const lock = soil?.getObjectByName('soilLockBadge');
+        const wetDetails = soil?.getObjectByName('soilWetDetails');
+        const wetSurface = soil?.getObjectByName('soilWetSurface');
+        const furrows = [1, 2, 3].map(n => soil?.getObjectByName(`soilFurrow${n}`)).filter(Boolean);
+        const clods = [1, 2, 3, 4].map(n => soil?.getObjectByName(`soilClod${n}`)).filter(Boolean);
 
-            if (gameState.level >= unlockLevelReq) {
-                mesh.material.color.setHex(0xeab308);
-            } else {
-                mesh.material.color.setHex(0x475569);
+        // Trạng thái visual tách biệt hoàn toàn: khóa / đã mở / đã tưới.
+        // Khi ướt, đổi trực tiếp palette của MẶT ĐẤT và toàn bộ chi tiết nâu,
+        // thay vì dựa vào một lớp xanh trong suốt phủ lên màu nâu.
+        if (!unlocked) {
+            mesh.material.color.setHex(0x4b5563);
+            if (base?.material) base.material.color.setHex(levelReady ? 0x4b5563 : 0x303844);
+            if (top?.material) top.material.color.setHex(levelReady ? 0x66717d : 0x3f4750);
+            if (rim?.material) rim.material.color.setHex(levelReady ? 0x9ca3af : 0x475569);
+            furrows.forEach(f => f.material.color.setHex(0x34404b));
+            clods.forEach(c => c.material.color.setHex(0x7b8792));
+            if (lock) lock.visible = true;
+            if (wetDetails) wetDetails.visible = false;
+        } else if (wet) {
+            // WET = xanh đậm thật sự trên toàn bộ soil palette.
+            // Không còn màu nâu ở soilTop/base/rim/furrow/clod.
+            mesh.material.color.setHex(0x061d2d);
+            if (base?.material) { base.material.color.setHex(0x062238); base.material.roughness = 0.46; }
+            if (top?.material) { top.material.color.setHex(0x083b57); top.material.roughness = 0.30; }
+            if (rim?.material) rim.material.color.setHex(0x0b5475);
+            furrows.forEach(f => { f.material.color.setHex(0x031b2a); f.material.roughness = 0.34; });
+            clods.forEach(c => { c.material.color.setHex(0x14506b); c.material.roughness = 0.28; });
+            if (wetSurface?.material) {
+                // Chỉ giữ lớp này làm highlight/bóng nước, không dùng nó để nhuộm nền.
+                wetSurface.material.color.setHex(0x1a6b8f);
+                wetSurface.material.opacity = 0.24;
+                wetSurface.material.roughness = 0.18;
             }
+            if (lock) lock.visible = false;
+            if (wetDetails) wetDetails.visible = true;
+        } else {
+            mesh.material.color.setHex(0xc28544);
+            if (base?.material) base.material.color.setHex(0x9a5d34);
+            if (top?.material) top.material.color.setHex(0xb97943);
+            if (rim?.material) rim.material.color.setHex(0x7d4a2b);
+            furrows.forEach(f => { f.material.color.setHex(0x754522); f.material.roughness = 1; });
+            clods.forEach(c => { c.material.color.setHex(0xc58a55); c.material.roughness = 1; });
+            if (wetSurface?.material) wetSurface.material.opacity = 0.82;
+            if (lock) lock.visible = false;
+            if (wetDetails) wetDetails.visible = false;
         }
     });
 }
+
 
 // Trả về bậc hình ảnh ổn định theo tiến trình sinh trưởng. Các ngưỡng bao phủ
 // cả mốc ra quả riêng của từng cây và mốc trưởng thành của lúa.
@@ -93,7 +244,7 @@ function updatePlotVisual(idx, fullRebuild = false) {
     const plot = gameState.plots[idx];
     if (!plot) return;
 
-    if (mesh.material && mesh.material.color) { const req = Math.floor(idx / 6) * 10; const lockedColor = gameState.level >= req ? 0xeab308 : 0x475569; mesh.material.color.setHex(!gameState.unlockedPlots[idx] ? lockedColor : (plot.watered ? 0x6f8f86 : 0xc28544)); }
+    updatePlotColorsByLevel();
 
     if (mesh.userData.cropMesh) {
         mesh.remove(mesh.userData.cropMesh);
@@ -182,14 +333,57 @@ function updatePlotVisual(idx, fullRebuild = false) {
                     sphere(0.075,h*0.58,0.02,0.12,0.25,0.105,produceMat,-0.12);
                     for(let i=0;i<7;i++) sphere(0.075+(i%2)*0.012,h*0.54-0.13+i*0.035,0.105,0.012,0.026,0.012,new THREE.MeshStandardMaterial({color:0xffe16b,roughness:0.7}));
                 }
-            } else if (cropKey === 'carrot' || cropKey === 'potato') {
-                for(let i=0;i<9;i++){
-                    const a=i*Math.PI*2/9, h=(cropKey==='carrot'?0.48:0.40)*growth;
-                    blade(Math.cos(a)*0.12,h*0.52,Math.sin(a)*0.12,h,0.055,leafMat,Math.cos(a)*0.30);
+            } else if (cropKey === 'carrot') {
+                // Carrot: one enlarged root with a compact leaf crown above it.
+                // Leaves stay above the soil/root zone instead of forming a ring that
+                // visually covers the harvestable carrot.
+                const leafCount = 7;
+                const leafBaseY = 0.39 * growth;
+                const leafHeight = 0.34 * growth;
+                for (let i = 0; i < leafCount; i++) {
+                    const a = i * Math.PI * 2 / leafCount;
+                    const r = 0.055 + (i % 2) * 0.018;
+                    blade(
+                        Math.cos(a) * r,
+                        leafBaseY + leafHeight * 0.5,
+                        Math.sin(a) * r,
+                        leafHeight,
+                        0.045,
+                        i % 2 ? leafMat : darkLeafMat,
+                        Math.cos(a) * 0.16
+                    );
                 }
-                if(mature){
-                    if(cropKey==='carrot') sphere(0,0.17,0,0.14,0.29,0.13,produceMat,-0.08);
-                    else for(let i=0;i<3;i++) sphere((i-1)*0.105,0.12,(i%2)*0.08,0.105,0.095,0.10,produceMat);
+                if (mature) {
+                    // Single, larger carrot root centred under the leaf crown.
+                    sphere(0, 0.17, 0, 0.19, 0.36, 0.17, produceMat, -0.08);
+                }
+            } else if (cropKey === 'potato') {
+                // Potato: visible stem/foliage above the soil and one large tuber
+                // offset beside the stem, rather than a cluster hidden by foliage.
+                const stemHeight = 0.52 * growth;
+                stem(0, 0, stemHeight, 0.038);
+
+                const leafCount = 7;
+                for (let i = 0; i < leafCount; i++) {
+                    const a = i * Math.PI * 2 / leafCount;
+                    const y = 0.20 * growth + (i % 3) * 0.055 * growth;
+                    const leaf = sphere(
+                        Math.cos(a) * 0.105,
+                        y,
+                        Math.sin(a) * 0.105,
+                        0.13 * growth,
+                        0.032 * growth,
+                        0.060 * growth,
+                        i % 2 ? leafMat : darkLeafMat,
+                        Math.cos(a) * 0.30
+                    );
+                    leaf.rotation.y = a;
+                }
+
+                if (mature) {
+                    // One enlarged tuber sits just below the soil surface, offset
+                    // from the stem so its silhouette remains readable.
+                    sphere(0.20, 0.12, 0.035, 0.16, 0.14, 0.15, produceMat, -0.10);
                 }
             } else if (cropKey === 'pumpkin' || cropKey === 'watermelon' || cropKey === 'strawberry') {
                 // Creeping vine: low horizontal runners, broad leaves, fruit resting close to the soil.
@@ -379,12 +573,12 @@ function handlePlotClick(idx) {
         if (plot.cropId && !plot.watered) {
             if (checkAndDeductStamina(1)) {
                 plot.watered = true;
-                if (plotMeshes[idx] && plotMeshes[idx].material) plotMeshes[idx].material.color.setHex(0x6f8f86);
                 plot.reducedSecs = (plot.reducedSecs || 0) + 15;
                 trackQuestProgress('water');
                 if (typeof playFarmSound === 'function') playFarmSound('water');
-                showToast("Tưới Nước! 💧", "Đất đổi sang màu xanh đậm để nhận biết, rút ngắn 15 giây thời gian lớn!", "💧");
+                showToast("Tưới Nước! 💧", "Đất chuyển sang xanh đậm để nhận biết, rút ngắn 15 giây thời gian lớn!", "💧");
                 updatePlotVisual(idx, true);
+                saveGame();
             }
         } else if (plot.watered) {
             showToast("Đã Tưới Nước 💧", "Ô đất này đã được tưới nước rồi!", "ℹ️");
