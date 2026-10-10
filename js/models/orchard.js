@@ -140,8 +140,10 @@ function handleOrchardClick(idx) {
                     tree.yieldCount = 0;
                     tree.lastHarvestAt = 0;
                     gameState.inventory.wood = (gameState.inventory.wood || 0) + 5;
+                    if (typeof playFarmSound === 'function') playFarmSound('harvest');
                     showToast("Cây Già Cỗi! 🪵", `Đã thu hoạch lần cuối và đốn cây (+5 Gỗ Cây)!`, "🪵", 4000);
                 } else {
+                    if (typeof playFarmSound === 'function') playFarmSound('harvest');
                     showToast("Thu Hoạch Trái Cây! 🧺", `Thu được 3 Quả ${treeInfo.name} (${tree.yieldCount}/10 lần)!`, "🍎");
                 }
 

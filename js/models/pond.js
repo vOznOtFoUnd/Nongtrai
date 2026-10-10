@@ -125,6 +125,7 @@ function collectDuckEggs() {
     if (!count) { if (!retired.length) showToast('Chưa Có Trứng Vịt 🥚', 'Vịt cần lớn 3 phút, sau đó mỗi 3 phút đẻ 1 trứng và cần đủ no.', 'ℹ️'); updateUI(); saveGame(); renderPondDuckControls(); return; }
     gameState.inventory.duck_egg = (Number(gameState.inventory.duck_egg) || 0) + count;
     trackQuestProgress('collect_animal', 'duck_egg', count); updateUI(); saveGame(); renderPondDuckControls();
+    if (typeof playFarmSound === 'function') playFarmSound('duck-harvest');
     showToast('Thu Trứng Vịt 🥚', `Thu được ${count} trứng vịt!`, '🥚');
 }
 function feedPondDucks() {
@@ -137,7 +138,8 @@ function feedPondDucks() {
     if (!checkAndDeductStamina(1)) return;
     gameState.inventory.feed_duck = qty - hungry.length;
     hungry.forEach(duck => { duck.hunger = 100; duck.hungry = false; duck.starvingStartAt = null; });
-    saveGame(); updateUI(); renderPondDuckControls(); renderPondFishCare(); updateFloatingHUD(); showToast('Đã Cho Vịt Ăn 🌾', `Đã dùng ${hungry.length} phần cám vịt.`, '🦆');
+    saveGame(); updateUI(); renderPondDuckControls(); renderPondFishCare(); updateFloatingHUD(); if (typeof playFarmSound === 'function') playFarmSound('animal');
+    showToast('Đã Cho Vịt Ăn 🌾', `Đã dùng ${hungry.length} phần cám vịt.`, '🦆');
 }
 function healPondDucks() {
     const ducks = gameState.fishPond && gameState.fishPond.ducks || [];
@@ -160,7 +162,8 @@ function feedPondFish() {
     if (!checkAndDeductStamina(1)) return;
     gameState.inventory.feed_fish = qty - hungry.length;
     hungry.forEach(f => { f.hunger = 100; f.hungry = false; f.starvingStartAt = null; });
-    saveGame(); updateUI(); renderPondFishCare(); renderPondDuckControls(); showToast('Đã cho cá ăn 🐟', `Đã dùng ${hungry.length} phần thức ăn cá.`, '✨');
+    saveGame(); updateUI(); renderPondFishCare(); renderPondDuckControls(); if (typeof playFarmSound === 'function') playFarmSound('pond');
+    showToast('Đã cho cá ăn 🐟', `Đã dùng ${hungry.length} phần thức ăn cá.`, '✨');
 }
 function healPondFish() {
     const fishes = gameState.fishPond && gameState.fishPond.fishes || [];
@@ -219,6 +222,9 @@ function updatePondFishMovement() {
 
 // Mở Modal Quản Lý Ao Cá
 function openFishPondModal() {
+    // Play only when entering the panel, not when refreshing it after an action.
+    const pondModal = document.getElementById('modal-fish-select');
+    if ((!pondModal || pondModal.classList.contains('hidden')) && typeof playFarmSound === 'function') playFarmSound('ui');
     const list = document.getElementById('fish-stock-list');
     if (!list) return;
 
@@ -330,6 +336,7 @@ function harvestFishFromPond() {
 
     updatePondFishVisuals();
     trackQuestProgress('harvest_fish', null, matureFish.length);
+    if (typeof playFarmSound === 'function') playFarmSound('fish-harvest');
     showToast("Thu Hoạch Ao Cá! 🐟", `Thu hoạch được ${matureFish.length} cá lớn!`, "🧺");
     openFishPondModal();
     if (typeof updateUI === 'function') updateUI();

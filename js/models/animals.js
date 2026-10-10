@@ -455,6 +455,9 @@ function updateAnimalMovement() {
 
 // Mở Modal Quản lý Chuồng Vật Nuôi
 function openAnimalPenModal(penType) {
+    // Play only when entering a pen panel, not when refreshing it after an action.
+    const animalPenModal = document.getElementById('modal-animal-pen');
+    if ((!animalPenModal || animalPenModal.classList.contains('hidden')) && typeof playFarmSound === 'function') playFarmSound('ui');
     currentPenType = penType;
     const titleMap = { chicken: '🐥 Chuồng Gà', cow: '🐮 Chuồng Bò', pig: '🐷 Chuồng Heo' };
     const titleEl = document.getElementById('animal-pen-title');
@@ -464,16 +467,73 @@ function openAnimalPenModal(penType) {
     const items = gameState[arrayName] || [];
 
     const level=Number((gameState.penLevels||{})[penType])||1; const capacity=2+(level-1)*2; const feedKey='feed_'+penType; const buyKey='buy_'+penType;
-    let text = `<div class="grid grid-cols-2 gap-2 mb-2"><div class="rounded-lg bg-white p-2 border"><b>🏡 Cấp chuồng ${level}/5</b><div class="text-[10px]">Sức chứa ${items.length}/${capacity}</div></div><div class="rounded-lg bg-white p-2 border"><b>📦 Kho hiện có</b><div class="text-[10px]">${Number(gameState.inventory[feedKey])||0} cám • ${Number(gameState.inventory[buyKey])||0} giống</div></div></div>`;
+    const now = Date.now();
+    const animalTiming = {
+        chicken: { growTime: 300, cycleTime: 180 },
+        cow: { growTime: 600, cycleTime: 360 },
+        pig: { growTime: 900, cycleTime: 480 }
+    }[penType];
+    const readyToHarvest = items.filter(a => {
+        if (a.sick || (a.hunger !== undefined && Number(a.hunger) <= 0)) return false;
+        const ageSecs = (now - Number(a.bornAt || now)) / 1000;
+        if (ageSecs < animalTiming.growTime) return false;
+        if (penType === 'pig') return true;
+        const lastTime = Math.max(Number(a.producedAt) || 0, Number(a.bornAt || now) + animalTiming.growTime * 1000);
+        return (now - lastTime) / 1000 >= animalTiming.cycleTime && (Number(a.yieldCount) || 0) < 10;
+    }).length;
+    const feedCount = Number(gameState.inventory[feedKey]) || 0;
+    const medicineCount = Number(gameState.inventory.medicine) || 0;
+    const seedCount = Number(gameState.inventory[buyKey]) || 0;
+    let text = `<div class="grid grid-cols-2 gap-2 mb-2"><div class="rounded-lg bg-white p-2 border"><b>🏡 Cấp chuồng ${level}/5</b><div class="text-[10px]">Sức chứa ${items.length}/${capacity}</div></div><div class="rounded-lg bg-white p-2 border"><b>📦 Kho hiện có</b><div class="text-[10px]">${feedCount} cám • ${seedCount} giống • ${medicineCount} thuốc</div><div class="text-[10px] mt-1">🧺 Có thể thu ngay: ${readyToHarvest}</div></div></div>`;
     let hungryCount = items.filter(a => a.hungry).length;
     let sickCount = items.filter(a => a.sick).length;
+    if ((hungryCount > 0 || sickCount > 0) && typeof playFarmSound === 'function') playFarmSound(sickCount > 0 ? 'sick' : 'hungry');
 
     text += `Tình trạng: <span class="${hungryCount > 0 ? 'text-amber-600 font-bold' : 'text-emerald-600'}">${hungryCount} con đói</span> | <span class="${sickCount > 0 ? 'text-rose-600 font-bold' : 'text-emerald-600'}">${sickCount} con bệnh</span>`;
     const statusEl = document.getElementById('animal-pen-status');
     text += `<div class="mt-2 text-[10px]">Sức khỏe: ${items.length-hungryCount-sickCount} ổn • ${hungryCount} đói • ${sickCount} bệnh</div>`;
     if (statusEl) statusEl.innerHTML = text;
     const upgrade=document.getElementById('pen-upgrade-button'); if(upgrade){const cost=level*1000;upgrade.disabled=level>=5;upgrade.className=`w-full mt-2 py-2 rounded-xl text-xs font-black ${level>=5?'bg-slate-300 text-slate-500':'bg-violet-600 text-white'}`;upgrade.textContent=level>=5?'Chuồng đã tối đa cấp':`⬆️ Nâng cấp chuồng (+2 slot) — ${cost} 🪙`;upgrade.onclick=upgradeAnimalPen;}
+    const counterLabels = {
+        'pen-feed-count': `x${feedCount}`,
+        'pen-seed-count': `x${seedCount}`,
+        'pen-harvest-count': `x${readyToHarvest}`,
+        'pen-medicine-count': `x${medicineCount}`
+    };
+    Object.entries(counterLabels).forEach(([id, value]) => { const el = document.getElementById(id); if (el) el.textContent = value; });
     openModal('modal-animal-pen');
+}
+
+// Làm mới số lượng trên các nút mà không dựng lại nội dung modal mỗi giây.
+function updateAnimalPenActionCounters() {
+    const modal = document.getElementById('modal-animal-pen');
+    if (!modal || modal.classList.contains('hidden') || !currentPenType) return;
+    const arrayName = currentPenType === 'chicken' ? 'chickens' : (currentPenType === 'cow' ? 'cows' : 'pigs');
+    const items = gameState[arrayName] || [];
+    const timing = {
+        chicken: { growTime: 300, cycleTime: 180 },
+        cow: { growTime: 600, cycleTime: 360 },
+        pig: { growTime: 900, cycleTime: 480 }
+    }[currentPenType];
+    const now = Date.now();
+    const readyCount = items.filter(a => {
+        if (a.sick || (a.hunger !== undefined && Number(a.hunger) <= 0)) return false;
+        const bornAt = Number(a.bornAt) || now;
+        if ((now - bornAt) / 1000 < timing.growTime) return false;
+        if (currentPenType === 'pig') return true;
+        const lastTime = Math.max(Number(a.producedAt) || 0, bornAt + timing.growTime * 1000);
+        return (now - lastTime) / 1000 >= timing.cycleTime && (Number(a.yieldCount) || 0) < 10;
+    }).length;
+    const values = {
+        'pen-feed-count': `x${Number(gameState.inventory['feed_' + currentPenType]) || 0}`,
+        'pen-seed-count': `x${Number(gameState.inventory['buy_' + currentPenType]) || 0}`,
+        'pen-harvest-count': `x${readyCount}`,
+        'pen-medicine-count': `x${Number(gameState.inventory.medicine) || 0}`
+    };
+    Object.entries(values).forEach(([id, value]) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = value;
+    });
 }
 
 // Thực thi Hành động trong Chuồng Gia Súc (ĐÃ FIX CHUẨN: HEO XUẤT CHUỒNG 1 LẦN & ĐỒNG BỘ HUNGER)
@@ -510,6 +570,7 @@ function executePenAction(action) {
                 a.starvingStartAt = null;
             });
 
+            if (typeof playFarmSound === 'function') playFarmSound('animal');
             showToast("Cho Ăn Thành Công! 🌾", `Đã dùng ${hungryList.length} ${getItemInfo(feedKey).name}. Tất cả đã no 100%!`, "✨");
             openAnimalPenModal(currentPenType);
             updateUI();
@@ -534,6 +595,7 @@ function executePenAction(action) {
                 a.sick = false;
                 a.starvingStartAt = null;
             });
+            if (typeof playFarmSound === 'function') playFarmSound('care');
             showToast("Chữa Bệnh Thành Công! 💊", `Đã chữa khỏi bệnh cho tất cả vật nuôi!`, "✨");
             openAnimalPenModal(currentPenType);
             updateUI();
@@ -651,10 +713,12 @@ function executePenAction(action) {
                     updateAnimalPen3DMeshes(currentPenType);
 
                     if (retiredCount > 0) {
+                        if (typeof playFarmSound === 'function') playFarmSound('animal-harvest');
                         if (!gameState.statistics || typeof gameState.statistics !== 'object') gameState.statistics = { animalsSold: 0, mealsCooked: 0, playTimeSeconds: 0, animalSicknessEvents: 0, cropsPlanted: 0 };
                         gameState.statistics.animalsSold = (Number(gameState.statistics.animalsSold) || 0) + retiredCount;
                         showToast("Thu Hoạch & Xuất Chuồng! 🧺", `Thu được ${harvestedProdCount} ${cfg.name}. Có ${retiredCount} con đã cho đủ 10 lần sản phẩm và xuất chuồng!`, "🎉", 4000);
                     } else {
+                        if (typeof playFarmSound === 'function') playFarmSound('animal-harvest');
                         showToast("Thu Hoạch Sản Phẩm! 🧺", `Thu được ${harvestedProdCount} ${cfg.name}!`, "✨");
                     }
 

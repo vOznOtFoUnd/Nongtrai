@@ -213,6 +213,7 @@ function handlePlotClick(idx) {
                         plot.watered = false;
                         plot.reducedSecs = 0;
                         updatePlotVisual(idx, true);
+                        if (typeof playFarmSound === 'function') playFarmSound('harvest');
                         showToast('Thu Hoạch! 🌱', `Thu hoạch ${crop.name} x${yieldAmount} (ô đất cấp ${plotLevel}), đợt ${harvestCount}/${regrowMax}. Cây sẽ tiếp tục ra quả!`, '🧺');
                     } else {
                         plot.cropId = null;
@@ -221,6 +222,7 @@ function handlePlotClick(idx) {
                         plot.harvestCount = 0;
                         plot.regrowMax = 0;
                         updatePlotVisual(idx, true);
+                        if (typeof playFarmSound === 'function') playFarmSound('harvest');
                         showToast('Thu Hoạch! 🌾', `Thu hoạch được ${yieldAmount} ${crop.name} nhờ ô đất cấp ${plotLevel}! Cây đã hết đợt thu hoạch.`, '🧺');
                     }
                     saveGame();
@@ -238,6 +240,7 @@ function handlePlotClick(idx) {
                 if (plotMeshes[idx] && plotMeshes[idx].material) plotMeshes[idx].material.color.setHex(0x6f8f86);
                 plot.reducedSecs = (plot.reducedSecs || 0) + 15;
                 trackQuestProgress('water');
+                if (typeof playFarmSound === 'function') playFarmSound('water');
                 showToast("Tưới Nước! 💧", "Đất đổi sang màu xanh đậm để nhận biết, rút ngắn 15 giây thời gian lớn!", "💧");
                 updatePlotVisual(idx, true);
             }
@@ -303,6 +306,7 @@ function plantSeed(cropKey) {
     };
     updatePlotVisual(selectedPlotIdx, true);
     closeModal('modal-seeds');
+    if (typeof playFarmSound === 'function') playFarmSound('plant');
     showToast("Đã Trồng Cây! 🌱", `Gieo hạt ${CROPS_DB[cropKey].name} thành công!`, "✨");
     saveGame();
 }
