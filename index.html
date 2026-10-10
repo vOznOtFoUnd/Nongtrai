@@ -23,18 +23,33 @@
     <!-- FLOATING HUD OVERLAY CONTAINER FOR CROPS, ANIMALS, FISH & TIMERS -->
     <div id="floating-hud-container" class="ui-layer"></div>
 
-    <!-- Nút đơn hàng luôn hiển thị, mở trực tiếp danh sách đơn. -->
-    <button onclick="openModal('modal-market')" id="market-orders-shortcut" aria-label="Xem đơn hàng" class="interactive-ui fixed left-3 bottom-28 sm:left-5 sm:bottom-5 z-40 rounded-2xl px-3 py-2.5 sm:px-4 sm:py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-xl border border-white/70 font-black text-xs sm:text-sm flex items-center gap-2 max-w-[44vw] sm:max-w-none"><span class="text-xl">📦</span><span>Đơn hàng</span><span id="market-order-count" class="hidden min-w-5 h-5 px-1 rounded-full bg-rose-600 text-white text-[10px] flex items-center justify-center">0</span></button>
+    <!-- UPGRADE 48: Direct movement HUD (mobile joystick + camera angle). Hidden in legacy click mode. -->
+    <div id="direct-control-hud" class="ui-layer hidden">
+        <div id="joystick-touch-zone" class="interactive-ui direct-joystick-touch-zone" aria-label="Vùng cảm ứng joystick">
+            <div id="joystick-base" class="direct-joystick-base">
+                <div id="joystick-stick" class="direct-joystick-stick">✦</div>
+            </div>
+        </div>
+        <div class="interactive-ui direct-camera-controls" aria-label="Điều chỉnh góc camera">
+            <button id="camera-angle-up" type="button" title="Góc camera cao hơn">▲</button>
+            <span id="camera-angle-label">3/5</span>
+            <button id="camera-angle-down" type="button" title="Góc camera thấp hơn">▼</button>
+        </div>
+    </div>
 
-    <!-- Nút giải trí luôn trên màn hình; mini-game không còn chiếm chỗ trên bản đồ -->
-    <button onclick="openEntertainmentMenu()" id="entertainment-button" aria-label="Mở khu giải trí" class="interactive-ui fixed right-3 bottom-28 sm:right-5 sm:bottom-5 z-40 rounded-2xl px-3 py-2.5 sm:px-4 sm:py-3 bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white shadow-xl border border-white/70 font-black text-xs sm:text-sm flex items-center gap-2 max-w-[42vw] sm:max-w-none"><span class="text-xl sm:text-2xl">🎮</span><span>Giải trí</span></button>
+    <!-- C1.2: Clickable interaction banner: the banner itself is the action. -->
+    <button id="interaction-bar" class="interaction-bar hidden interactive-ui" type="button" aria-live="polite" aria-label="Tương tác">
+        <span id="interaction-bar-icon" class="interaction-bar-icon">✋</span>
+        <span id="interaction-bar-name" class="interaction-bar-name">Khu vực</span>
+    </button>
 
     <!-- UI Overlay Layer -->
     <div class="ui-layer flex flex-col justify-between p-3 select-none">
         <!-- Top Navigation Bar -->
         <div class="flex justify-between items-start w-full gap-2">
             <!-- Player Stats -->
-            <button type="button" onclick="openPlayerProfile()" aria-label="Mở hồ sơ nhân vật và cài đặt" class="interactive-ui glass-panel rounded-2xl p-2 px-3 flex items-center gap-3 shadow-xl text-left hover:ring-2 hover:ring-amber-300 transition">
+            <div class="player-card-stack">
+                <button type="button" onclick="openPlayerProfile()" aria-label="Mở hồ sơ nhân vật và cài đặt" class="interactive-ui glass-panel rounded-2xl p-2 px-3 flex items-center gap-3 shadow-xl text-left hover:ring-2 hover:ring-amber-300 transition">
                 <div class="relative">
                     <div id="avatar-icon" class="w-12 h-12 rounded-full bg-gradient-to-tr from-amber-400 to-yellow-200 border-2 border-white flex items-center justify-center text-2xl shadow">🧑‍🌾</div>
                     <span id="player-level-badge" class="absolute -bottom-1 -right-1 bg-red-500 text-white font-black text-[11px] px-1.5 py-0.5 rounded-full border border-white">Lv.1</span>
@@ -46,7 +61,9 @@
                     </div>
                     <span id="exp-text" class="text-[9px] text-slate-500 font-bold">0 / 100 EXP</span>
                 </div>
-            </button>
+                </button>
+                <button id="camera-mode-toggle" class="interactive-ui camera-mode-toggle hidden" type="button" aria-label="Đổi chế độ góc nhìn">🗺️ Topdown</button>
+            </div>
 
             <!-- Game Time, Weather & Resources -->
             <div class="flex flex-col gap-1.5 items-end">
@@ -82,6 +99,10 @@
                 <button onclick="openModal('modal-kitchen')" id="tool-kitchen" title="Mở nhà bếp" class="flex flex-col items-center justify-center w-10 h-11 sm:w-11 rounded-2xl bg-orange-500 text-white shadow"><span class="text-xl">🍳</span><span class="text-[9px] font-bold">Bếp</span></button>
                 <button onclick="openModal('modal-shop')" title="Cửa hàng" class="flex flex-col items-center justify-center w-10 h-11 sm:w-11 rounded-2xl bg-emerald-500 text-white shadow"><span class="text-xl">🛒</span><span class="text-[9px] font-bold">Shop</span></button>
                 <button onclick="openModal('modal-inventory')" title="Túi đồ" class="flex flex-col items-center justify-center w-10 h-11 sm:w-11 rounded-2xl bg-sky-500 text-white shadow"><span class="text-xl">🎒</span><span class="text-[9px] font-bold">Túi đồ</span></button>
+                <button id="farm-phone-button" class="farm-phone-dock-button interactive-ui flex flex-col items-center justify-center w-10 h-11 sm:w-11 rounded-2xl bg-violet-500 text-white shadow" type="button" onclick="openFarmPhone()" aria-label="Mở điện thoại nông trại" title="Điện thoại">
+                    <span class="farm-phone-icon">📱</span><span class="text-[9px] font-bold">Điện thoại</span>
+                    <span id="farm-phone-order-badge" class="farm-phone-badge hidden">0</span>
+                </button>
             </div>
         </div>
     </div>
@@ -115,7 +136,7 @@
     </div>
 
     <!-- TOAST POPUP CONTAINER -->
-    <div id="toast-container" class="fixed bottom-28 right-5 z-50 flex flex-col gap-2.5 pointer-events-none max-w-xs w-full px-2"></div>
+    <div id="toast-container" class="fixed top-[70px] left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2 pointer-events-none w-[min(86vw,380px)] px-2"></div>
 
     <!-- MODAL DIALOG -->
     <div id="modal-dialog" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
@@ -305,6 +326,25 @@
     </div>
 
     <!-- MARKET MODAL -->
+    <div id="modal-farm-phone" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div class="farm-phone-window w-full sm:max-w-md rounded-t-[2rem] sm:rounded-[2rem] p-4 shadow-2xl">
+        <div class="farm-phone-statusbar flex items-center justify-between px-1 mb-2 text-[10px] font-black text-slate-500">
+          <span>🌾 NÔNG TRẠI</span><span>● 100% 🔋</span>
+        </div>
+        <div class="flex items-center justify-between mb-4">
+          <div><div class="text-lg font-black text-slate-800">📱 Điện thoại nông trại</div><div class="text-[10px] text-slate-500 font-bold">Ứng dụng & thông báo</div></div>
+          <button onclick="closeModal('modal-farm-phone')" class="w-9 h-9 rounded-full bg-slate-200 text-slate-600 font-bold">✕</button>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <button onclick="closeModal('modal-farm-phone');openModal('modal-market')" class="farm-app-card farm-app-orders relative"><span class="text-4xl">📦</span><b>Đơn hàng</b><span id="farm-phone-app-badge" class="farm-phone-app-badge hidden">0</span></button>
+          <button onclick="closeModal('modal-farm-phone');openEntertainmentMenu()" class="farm-app-card farm-app-games"><span class="text-4xl">🎮</span><b>Giải trí</b></button>
+          <button onclick="closeModal('modal-farm-phone');openModal('modal-quests')" class="farm-app-card farm-app-quests"><span class="text-4xl">🏆</span><b>Nhiệm vụ</b></button>
+          <button onclick="closeModal('modal-farm-phone');openModal('modal-settings')" class="farm-app-card farm-app-settings"><span class="text-4xl">⚙️</span><b>Cài đặt</b></button>
+        </div>
+        <div class="farm-phone-home-indicator" aria-hidden="true"></div>
+      </div>
+    </div>
+
     <div id="modal-market" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 hidden flex items-center justify-center p-4">
         <div class="glass-panel w-full max-w-lg rounded-3xl p-5 shadow-2xl flex flex-col max-h-[85vh]">
             <div class="flex justify-between items-center mb-1">
@@ -464,6 +504,26 @@
         <div class="flex justify-between items-center mb-4"><h3 class="font-black text-lg text-slate-800">⚙️ Cài đặt & dữ liệu</h3><button onclick="closeModal('modal-settings')" class="rounded-full bg-slate-200 w-8 h-8 font-bold">✕</button></div>
         <label class="block text-xs font-bold mb-1">Tên nhân vật</label><div class="flex gap-2 mb-4"><input id="setting-player-name" maxlength="24" class="min-w-0 flex-1 rounded-xl border p-2" placeholder="Tên nhân vật"><button onclick="savePlayerName()" class="px-3 rounded-xl bg-emerald-600 text-white font-bold text-xs">Đổi tên</button></div>
         <div class="grid grid-cols-1 gap-3 mb-4">
+          <div class="p-3 bg-white rounded-xl border">
+            <label for="setting-control-mode" class="block text-sm font-black text-slate-800 mb-2">🎮 Kiểu điều khiển</label>
+            <select id="setting-control-mode" onchange="saveControlSettings()" class="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-sm font-bold text-slate-700">
+              <option value="click">👆 Chạm để di chuyển (cũ)</option>
+              <option value="direct">🕹️ Joystick / WASD + camera theo nhân vật</option>
+            </select>
+            <p class="text-[11px] text-slate-500 mt-2">Mobile dùng joystick. Máy tính dùng WASD hoặc phím mũi tên. Chế độ cũ vẫn giữ nguyên.</p>
+          </div>
+          <div class="p-3 bg-white rounded-xl border">
+            <label for="setting-camera-mode" class="block text-sm font-black text-slate-800 mb-2">🎥 Chế độ góc nhìn</label>
+            <select id="setting-camera-mode" onchange="saveCameraModeSetting()" class="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-sm font-bold text-slate-700">
+              <option value="thirdPerson">🧑‍🌾 Theo nhân vật</option>
+              <option value="topdown">🗺️ Topdown</option>
+            </select>
+            <p class="text-[11px] text-slate-500 mt-2">Topdown dùng cùng camera orbit và di chuyển theo hướng camera.</p>
+          </div>
+          <div class="p-3 bg-white rounded-xl border">
+            <div class="flex items-center justify-between gap-3"><div><div class="text-sm font-black text-slate-800">📐 Góc camera</div><div class="text-[11px] text-slate-500">Áp dụng cho cả góc nhìn Theo nhân vật và Topdown.</div></div><div class="flex items-center gap-1"><button type="button" onclick="saveCameraAngleSetting(-1)" class="w-9 h-9 rounded-xl bg-slate-100 font-black">▼</button><span id="settings-camera-angle-label" class="w-10 text-center text-xs font-black">3/5</span><button type="button" onclick="saveCameraAngleSetting(1)" class="w-9 h-9 rounded-xl bg-slate-100 font-black">▲</button></div></div>
+          </div>
+          <div class="p-3 bg-white rounded-xl border"><button type="button" onclick="requestLandscapeFullscreen()" class="w-full p-3 rounded-xl bg-sky-600 text-white font-black text-sm">📱 Toàn màn hình ngang</button><p class="text-[11px] text-slate-500 mt-2">Trên điện thoại, nút này thử bật toàn màn hình và khóa màn hình ngang nếu trình duyệt hỗ trợ.</p></div>
           <label class="p-3 bg-white rounded-xl border flex items-center gap-2 text-sm"><input id="setting-sound" type="checkbox" onchange="saveAudioSettings()"> 🔊 Hiệu ứng âm thanh</label>
           <div class="px-3 pb-2"><div class="flex justify-between text-xs font-bold mb-1"><label for="setting-sound-volume">Âm lượng hiệu ứng</label><span id="setting-sound-volume-label">65%</span></div><input id="setting-sound-volume" type="range" min="0" max="100" value="65" class="w-full accent-emerald-600" oninput="previewAudioVolume('sound', this.value)" onchange="saveAudioSettings()"></div>
           <label class="p-3 bg-white rounded-xl border flex items-center gap-2 text-sm"><input id="setting-music" type="checkbox" onchange="saveAudioSettings()"> 🎵 Nhạc nền (bật/tắt riêng)</label>
@@ -494,6 +554,7 @@
     <script src="js/ui/inventoryUI.js"></script>
     <script src="js/ui/kitchenUI.js"></script>
     <script src="js/ui/marketUI.js"></script>
+    <script src="js/ui/farmPhoneUI.js"></script>
     <script src="js/ui/questsUI.js"></script>
     <script src="js/ui/dailyQuestHud.js"></script>
     <script src="js/minigames/horseRace.js"></script>
