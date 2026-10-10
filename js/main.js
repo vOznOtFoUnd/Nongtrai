@@ -116,6 +116,10 @@ function gameLogicLoop() {
         });
     });
 
+    // Đồng bộ model theo tiến trình cây: cập nhật ở các mốc sinh trưởng/ra quả,
+    // tránh model bị kẹt ở hình ảnh lúc mới trồng cho đến khi có thao tác khác.
+    if (typeof updateGrowingCropVisuals === 'function') updateGrowingCropVisuals(now);
+
     // 5. LOGIC MỚI: SÂU BỆNH THEO THỜI TIẾT & CÂY CHÍN NGÂM QUÁ LÂU
     if (gameState.plots && Array.isArray(gameState.plots)) {
         gameState.plots.forEach((p, idx) => {
