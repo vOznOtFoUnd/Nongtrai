@@ -162,16 +162,16 @@
             <button id="pen-upgrade-button" class="w-full mb-3 py-2 rounded-xl text-xs font-black bg-violet-600 text-white">⬆️ Nâng cấp chuồng</button>
             <div class="grid grid-cols-2 gap-3 mb-2">
                 <button onclick="executePenAction('feed')" class="p-3 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl font-bold text-xs flex flex-col items-center gap-1 shadow">
-                    <span class="text-2xl">🌾</span><span>Cho Ăn (-1⚡)</span>
+                    <span class="text-2xl">🌾</span><span>Cho Ăn (-1⚡)</span><span id="pen-feed-count" class="rounded-full bg-white/25 px-2 py-0.5 text-[10px] font-black">x0</span>
                 </button>
                 <button onclick="executePenAction('add')" class="p-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl font-bold text-xs flex flex-col items-center gap-1 shadow">
-                    <span class="text-2xl">➕</span><span>Thêm Vật Nuôi</span>
+                    <span class="text-2xl">➕</span><span>Thêm Vật Nuôi</span><span id="pen-seed-count" class="rounded-full bg-white/25 px-2 py-0.5 text-[10px] font-black">x0</span>
                 </button>
                 <button onclick="executePenAction('harvest')" class="p-3 bg-sky-500 hover:bg-sky-600 text-white rounded-2xl font-bold text-xs flex flex-col items-center gap-1 shadow">
-                    <span class="text-2xl">🧺</span><span>Thu Hoạch Sản Phẩm</span>
+                    <span class="text-2xl">🧺</span><span>Thu Hoạch</span><span id="pen-harvest-count" class="rounded-full bg-white/25 px-2 py-0.5 text-[10px] font-black">x0</span>
                 </button>
                 <button onclick="executePenAction('heal')" class="p-3 bg-rose-500 hover:bg-rose-600 text-white rounded-2xl font-bold text-xs flex flex-col items-center gap-1 shadow">
-                    <span class="text-2xl">💊</span><span>Chữa Bệnh</span>
+                    <span class="text-2xl">💊</span><span>Chữa Bệnh</span><span id="pen-medicine-count" class="rounded-full bg-white/25 px-2 py-0.5 text-[10px] font-black">x0</span>
                 </button>
             </div>
         </div>
@@ -463,7 +463,13 @@
       <div class="glass-panel w-full max-w-md rounded-3xl p-5 shadow-2xl max-h-[90vh] overflow-y-auto">
         <div class="flex justify-between items-center mb-4"><h3 class="font-black text-lg text-slate-800">⚙️ Cài đặt & dữ liệu</h3><button onclick="closeModal('modal-settings')" class="rounded-full bg-slate-200 w-8 h-8 font-bold">✕</button></div>
         <label class="block text-xs font-bold mb-1">Tên nhân vật</label><div class="flex gap-2 mb-4"><input id="setting-player-name" maxlength="24" class="min-w-0 flex-1 rounded-xl border p-2" placeholder="Tên nhân vật"><button onclick="savePlayerName()" class="px-3 rounded-xl bg-emerald-600 text-white font-bold text-xs">Đổi tên</button></div>
-        <div class="grid grid-cols-1 gap-2 mb-4"><label class="p-3 bg-white rounded-xl border flex items-center gap-2 text-sm"><input id="setting-sound" type="checkbox" onchange="saveAudioSettings()"> 🔊 Hiệu ứng âm thanh giao diện</label><p class="text-[11px] text-slate-500">Nhạc nền chưa được tích hợp; save cũ có trường nhạc vẫn được giữ tương thích.</p></div>
+        <div class="grid grid-cols-1 gap-3 mb-4">
+          <label class="p-3 bg-white rounded-xl border flex items-center gap-2 text-sm"><input id="setting-sound" type="checkbox" onchange="saveAudioSettings()"> 🔊 Hiệu ứng âm thanh</label>
+          <div class="px-3 pb-2"><div class="flex justify-between text-xs font-bold mb-1"><label for="setting-sound-volume">Âm lượng hiệu ứng</label><span id="setting-sound-volume-label">65%</span></div><input id="setting-sound-volume" type="range" min="0" max="100" value="65" class="w-full accent-emerald-600" oninput="previewAudioVolume('sound', this.value)" onchange="saveAudioSettings()"></div>
+          <label class="p-3 bg-white rounded-xl border flex items-center gap-2 text-sm"><input id="setting-music" type="checkbox" onchange="saveAudioSettings()"> 🎵 Nhạc nền (bật/tắt riêng)</label>
+          <div class="px-3 pb-2"><div class="flex justify-between text-xs font-bold mb-1"><label for="setting-music-volume">Âm lượng nhạc nền</label><span id="setting-music-volume-label">30%</span></div><input id="setting-music-volume" type="range" min="0" max="100" value="30" class="w-full accent-emerald-600" oninput="previewAudioVolume('music', this.value)" onchange="saveAudioSettings()"></div>
+          <p class="text-[11px] text-slate-500">Âm thanh đóng gói trong game để dùng offline. Trên điện thoại, chạm màn hình một lần để kích hoạt phát nhạc.</p>
+        </div>
         <div class="grid grid-cols-2 gap-2"><button onclick="exportFarmSave()" class="p-3 rounded-xl bg-sky-600 text-white font-bold text-sm">⬇️ Xuất save</button><button onclick="document.getElementById('import-save-file').click()" class="p-3 rounded-xl bg-violet-600 text-white font-bold text-sm">⬆️ Nhập save</button></div>
         <input id="import-save-file" type="file" accept="application/json,.json" class="hidden" onchange="importFarmSave(event)">
         <button onclick="startNewFarm()" class="w-full mt-3 p-3 rounded-xl bg-rose-100 text-rose-700 border border-rose-200 font-black text-sm">🆕 Tạo nông trại mới</button>
@@ -478,6 +484,7 @@
     <script src="js/state/gameState.js"></script>
     <script src="js/ui/toast.js"></script>
     <script src="js/ui/saveSettings.js"></script>
+    <script src="js/audio/audioManager.js"></script>
     <script src="js/ui/uiManager.js"></script>
     <script src="js/ui/modalManager.js"></script>
     <script src="js/ui/floatingHud.js"></script>
