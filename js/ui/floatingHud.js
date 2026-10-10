@@ -95,6 +95,17 @@ function updateFloatingHUD() {
             if (!treeInfo) return;
 
             const timing = typeof getOrchardTiming === 'function' ? getOrchardTiming(tree, now) : { remainingSecs: 0, ready: false, progress: 0 };
+            // Grow the complete tree smoothly while the sapling matures. After
+            // its first harvest, keep its full size through every later cycle.
+            const mature = Number(tree.lastHarvestAt) > 0 || Number(tree.yieldCount || 0) > 0;
+            const growthRatio = mature ? 1 : Math.max(0, Math.min(1, Number(timing.progress) || 0));
+            if (mesh.userData && mesh.userData.treeMesh) {
+                mesh.userData.treeMesh.scale.setScalar(0.42 + growthRatio * 0.58);
+                // Keep fruit visibility synchronized with the same timer as the HUD.
+                // Fruit appears when ready and disappears immediately after harvest.
+                const fruitGroup = mesh.userData.treeMesh.userData && mesh.userData.treeMesh.userData.fruitGroup;
+                if (fruitGroup) fruitGroup.visible = !!timing.ready;
+            }
             let badgeText = '';
             let badgeStyle = 'bg-white/95 border-emerald-500 text-slate-800';
             if (timing.ready) {
