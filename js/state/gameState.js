@@ -60,7 +60,7 @@ let gameState = {
     playerName: 'Chibi Farmer',
     // Counters added in UPGRADE 16. Older saves start at zero where no reliable history exists.
     statistics: { animalsSold: 0, mealsCooked: 0, playTimeSeconds: 0, animalSicknessEvents: 0, cropsPlanted: 0 },
-    settings: { sound: true, music: true, soundVolume: 0.65, musicVolume: 0.3 }
+    settings: { sound: true, music: true, soundVolume: 0.65, musicVolume: 0.3, controlMode: 'click', cameraAngle: 3, cameraMode: 'thirdPerson' }
 };
 
 // Mở khóa 6 ô đất đầu tiên mặc định
@@ -190,7 +190,10 @@ function normalizeLoadedGameState(state) {
         const value = Number(state.statistics[key]);
         state.statistics[key] = Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
     });
-    if (!isPlainObject(state.settings)) state.settings = { sound: true, music: true, soundVolume: 0.65, musicVolume: 0.3 };
+    if (!isPlainObject(state.settings)) state.settings = { sound: true, music: true, soundVolume: 0.65, musicVolume: 0.3, controlMode: 'click', cameraAngle: 3, cameraMode: 'thirdPerson' };
+    state.settings.controlMode = state.settings.controlMode === 'direct' ? 'direct' : 'click';
+    state.settings.cameraAngle = Math.max(1, Math.min(5, Math.floor(Number(state.settings.cameraAngle) || 3)));
+    state.settings.cameraMode = state.settings.cameraMode === 'topdown' ? 'topdown' : 'thirdPerson';
     state.settings.sound = state.settings.sound !== false;
     state.settings.music = state.settings.music !== false;
     ['soundVolume', 'musicVolume'].forEach(key => { const value = Number(state.settings[key]); state.settings[key] = Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : (key === 'soundVolume' ? 0.65 : 0.3); });
