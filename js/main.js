@@ -172,11 +172,14 @@ let lastWeatherTick = 0;
 let lastAnimationFrameTime = 0;
 function animate3D(now = performance.now()) {
     requestAnimationFrame(animate3D);
+    if (window.FarmPerf) window.FarmPerf.beginFrame(now);
     const delta = lastAnimationFrameTime > 0
         ? Math.min(0.05, Math.max(0, (now - lastAnimationFrameTime) / 1000))
         : 1 / 60;
     lastAnimationFrameTime = now;
+    if (window.FarmAssetStudio) window.FarmAssetStudio.update(delta);
 
+    const __perfControlsStart = performance.now();
     if (controls && getControlMode() !== 'direct') controls.update();
 
     if (camera && camera.position.y < 0.5) {
@@ -220,17 +223,24 @@ function animate3D(now = performance.now()) {
         lastWeatherTick = now;
         const positions = weatherParticleSystem.geometry.attributes.position.array;
         const type = weatherParticleSystem.userData.type;
+        const fallSpeed = type === 'rainy' ? 0.8 : 0.2;
         for (let i = 1; i < positions.length; i += 3) {
-            positions[i] -= type === 'rainy' ? 0.8 : 0.2;
-            if (positions[i] < 0) positions[i] = 40;
+            const y = positions[i] - fallSpeed;
+            positions[i] = y < 0 ? 40 : y;
         }
         weatherParticleSystem.geometry.attributes.position.needsUpdate = true;
     }
 
     if (typeof updateFloatingHUDThrottled === 'function') updateFloatingHUDThrottled(now);
 
+    if (window.FarmPerf) {
+        window.FarmPerf.phase('frame-update-total', performance.now() - __perfControlsStart);
+        window.FarmPerf.updateDone();
+    }
     if (renderer && scene && camera) {
+        const __perfRenderStart = performance.now();
         renderer.render(scene, camera);
+        if (window.FarmPerf) window.FarmPerf.renderDone(__perfRenderStart);
     }
 }
 
