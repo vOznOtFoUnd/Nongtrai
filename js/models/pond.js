@@ -37,6 +37,27 @@ function buildFishPond() {
     const glintMat = new THREE.MeshBasicMaterial({ color: 0xd1faf5, transparent: true, opacity: 0.28, depthWrite: false, side: THREE.DoubleSide });
     [[-3.8,-1.9,2.8,0.12],[1.8,-2.7,3.6,0.10],[4.0,1.3,1.8,0.10],[-1.2,2.7,2.5,0.08]].forEach(([x,z,w,h])=>{const glint=new THREE.Mesh(new THREE.PlaneGeometry(w,h),glintMat);glint.rotation.x=-Math.PI/2;glint.position.set(x,0.125,z);pondGroup.add(glint);});
 
+    // Interaction markers along shoreline; players do not need to enter pond center.
+    const shorePoints=[[-8.85,0], [8.85,0], [0,-5.6], [0,5.6],[-7.2,-5.4],[7.2,-5.4],[-7.2,5.4],[7.2,5.4]];
+    const ringGeo=new THREE.RingGeometry(0.5,0.72,24);
+    const ringMat=new THREE.MeshBasicMaterial({color:0x62e5cb,side:THREE.DoubleSide,transparent:true,opacity:.66,depthWrite:false});
+    // Two dedicated shoreline interaction props; each can be replaced via Asset Studio.
+    const bridge=new THREE.Group();bridge.position.set(-8.75,.12,-1.8);
+    const wood=new THREE.MeshStandardMaterial({color:0x9c6842,roughness:.9});
+    for(let i=0;i<5;i++){const plank=new THREE.Mesh(new THREE.BoxGeometry(1.7,.14,.56),wood);plank.position.set(-.6,0,(i-2)*.56);bridge.add(plank)}
+    bridge.userData.type='pond_fish_bridge';pondGroup.add(bridge);
+    if(typeof registerGameAssetTarget==='function')registerGameAssetTarget(bridge,'fishBridge');
+    const nest=new THREE.Group();nest.position.set(8.65,.15,1.8);
+    const straw=new THREE.MeshStandardMaterial({color:0xcaa55e,roughness:1});
+    const bowl=new THREE.Mesh(new THREE.TorusGeometry(.65,.2,8,18),straw);bowl.rotation.x=Math.PI/2;nest.add(bowl);
+    for(let i=0;i<3;i++){const egg=new THREE.Mesh(new THREE.SphereGeometry(.19,10,8),new THREE.MeshStandardMaterial({color:0xfff6dc}));egg.position.set((i-1)*.23,.1,(i%2)*.19);egg.scale.y=1.3;nest.add(egg)}
+    nest.userData.type='pond_duck_nest';pondGroup.add(nest);
+    if(typeof registerGameAssetTarget==='function')registerGameAssetTarget(nest,'duckNest');
+    /* Previous ring positions retained as visual-only rings, not competing interactions. */
+    shorePoints.forEach(([x,z])=>{
+      const marker=new THREE.Mesh(ringGeo,ringMat);marker.rotation.x=-Math.PI/2;marker.position.set(x,.16,z);
+      marker.userData={type:'pond_decoration'};pondGroup.add(marker);
+    });
     pondGroup.userData = { type: 'pond' };
     scene.add(pondGroup);
 
@@ -79,6 +100,7 @@ function updatePondFishVisuals() {
         fishGroup.position.set((Math.random()-0.5)*13.8, 0.22, 20+(Math.random()-0.5)*8.4);
         fishGroup.userData.swim = { phase: Math.random()*Math.PI*2, speed: 0.22+Math.random()*0.18, drift: (Math.random()-0.5)*0.8, originX: fishGroup.position.x, originZ: fishGroup.position.z };
         scene.add(fishGroup);
+        if (typeof registerGameAssetTarget === 'function') registerGameAssetTarget(fishGroup, 'fish');
         pondFishMeshes.push({ mesh: fishGroup, data: fish });
     });;
 }
@@ -120,7 +142,7 @@ function updatePondDuckVisuals() {
         });
         group.userData.duckIndex = idx;
         group.userData.swim = { phase: Math.random() * Math.PI * 2, speed: 0.12 + Math.random() * 0.08, x: (Math.random() - 0.5) * 13.8, z: 20 + (Math.random() - 0.5) * 8.2 };
-        scene.add(group); pondDuckMeshes.push(group);
+        scene.add(group); if (typeof registerGameAssetTarget === 'function') registerGameAssetTarget(group, 'duck'); pondDuckMeshes.push(group);
     });
 }
 function updatePondDuckMovement() {
@@ -311,7 +333,7 @@ function addFishToPond(fryKey) {
         });
         updatePondFishVisuals();
         saveGame(); updateUI();
-        openFishPondModal();
+        if(!window.quickPondMode)openFishPondModal();
         showToast("Thả Cá Giống! 🐟", `Đã thả 1 ${FISH_DB[fryKey].name} vào ao!`, "💦");
     }
 }

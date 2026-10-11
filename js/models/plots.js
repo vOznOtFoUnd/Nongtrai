@@ -1,6 +1,17 @@
 
 // UPGRADE 42: stylized soil visuals are children of the existing plot hitbox.
 // The hitbox/index/click contract stays unchanged; only its rendered surface changes.
+// FIX79: shared immutable procedural geometries; per-plot colors are kept independent.
+const soilGeometryCache = new Map();
+function sharedSoilGeometry(key, factory) {
+    if (!soilGeometryCache.has(key)) soilGeometryCache.set(key, factory());
+    return soilGeometryCache.get(key);
+}
+const soilMaterialCache = new Map();
+function sharedSoilMaterial(key, factory) {
+    if (!soilMaterialCache.has(key)) soilMaterialCache.set(key, factory());
+    return soilMaterialCache.get(key);
+}
 function createRoundedSoilTop(width = 1.82, depth = 1.82, radius = 0.18) {
     const shape = new THREE.Shape();
     const x = width / 2, z = depth / 2, r = Math.min(radius, width / 2, depth / 2);
@@ -13,8 +24,8 @@ function createRoundedSoilTop(width = 1.82, depth = 1.82, radius = 0.18) {
     shape.quadraticCurveTo(-x, z, -x, z - r);
     shape.lineTo(-x, -z + r);
     shape.quadraticCurveTo(-x, -z, -x + r, -z);
-    const geo = new THREE.ShapeGeometry(shape, 3);
-    const mat = new THREE.MeshStandardMaterial({ color: 0xb97943, roughness: 0.96, metalness: 0 });
+    const geo = sharedSoilGeometry("top", () => new THREE.ShapeGeometry(shape, 3));
+    const mat = sharedSoilMaterial("top", () => new THREE.MeshStandardMaterial({ color: 0xb97943, roughness: 0.96, metalness: 0 }));
     const top = new THREE.Mesh(geo, mat);
     top.rotation.x = -Math.PI / 2;
     top.position.y = 0.104;
@@ -24,44 +35,41 @@ function createRoundedSoilTop(width = 1.82, depth = 1.82, radius = 0.18) {
     return top;
 }
 
+let soilFurrowInstances = null;
+let soilClodInstances = null;
+const soilDetailInstanceColors = { locked: 0x34404b, dry: 0x754522, wet: 0x031b2a, lockedClod: 0x7b8792, dryClod: 0xc58a55, wetClod: 0x14506b };
+
 function addSoilVisualToPlot(plotMesh, unlocked) {
     if (!plotMesh || plotMesh.userData.soilVisual) return;
     const soil = new THREE.Group();
     soil.name = 'chibiSoilVisual';
 
     const base = new THREE.Mesh(
-        new THREE.BoxGeometry(1.86, 0.18, 1.86),
+        sharedSoilGeometry("base", () => new THREE.BoxGeometry(1.86, 0.18, 1.86)),
         new THREE.MeshStandardMaterial({ color: unlocked ? 0x9a5d34 : 0x3f4750, roughness: 0.98 })
     );
     base.name = 'soilBase'; base.position.y = 0.01; base.receiveShadow = true; base.castShadow = true; base.raycast = () => {};
     soil.add(base);
 
     const top = createRoundedSoilTop();
+    top.material = top.material.clone(); // independent mutable color for fallback
     soil.add(top);
 
     const rim = new THREE.Mesh(
-        new THREE.RingGeometry(0.83, 0.91, 4),
+        sharedSoilGeometry("rim", () => new THREE.RingGeometry(0.83, 0.91, 4)),
         new THREE.MeshStandardMaterial({ color: unlocked ? 0x7d4a2b : 0x64707b, roughness: 0.92, side: THREE.DoubleSide })
     );
     rim.rotation.x = -Math.PI / 2; rim.position.y = 0.109; rim.scale.set(1, 1, 1); rim.name = 'soilStatusRim'; rim.raycast = () => {};
     soil.add(rim);
 
-    const detailMat = new THREE.MeshStandardMaterial({ color: 0x754522, roughness: 1 });
-    const lightDetailMat = new THREE.MeshStandardMaterial({ color: 0xc58a55, roughness: 1 });
-    [-0.48, 0, 0.48].forEach((z, i) => {
-        const furrow = new THREE.Mesh(new THREE.BoxGeometry(1.28, 0.018, 0.055), detailMat);
-        furrow.position.set((i - 1) * 0.025, 0.115, z); furrow.rotation.y = (i - 1) * 0.035; furrow.name = `soilFurrow${i + 1}`; furrow.raycast = () => {}; soil.add(furrow);
-    });
-    [[-0.63,-0.62],[0.57,-0.34],[-0.52,0.36],[0.48,0.58]].forEach(([x,z], i) => {
-        const clod = new THREE.Mesh(new THREE.IcosahedronGeometry(0.045 + (i % 2) * 0.012, 0), lightDetailMat);
-        clod.position.set(x, 0.128, z); clod.scale.set(1.35, 0.55, 0.8); clod.name = `soilClod${i + 1}`; clod.raycast = () => {}; soil.add(clod);
-    });
+    // Furrows and clods are batched into shared InstancedMeshes after all plots are built.
+    // Keep the legacy material declarations out of per-plot allocations.
 
     // Trạng thái khóa: huy hiệu khóa nhỏ, chỉ là visual nên không chặn click.
     const lockGroup = new THREE.Group(); lockGroup.name = 'soilLockBadge'; lockGroup.position.set(0.61, 0.18, 0.61);
-    const lockBody = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.18, 0.14), new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.72 }));
+    const lockBody = new THREE.Mesh(sharedSoilGeometry("lockBody", () => new THREE.BoxGeometry(0.22, 0.18, 0.14)), sharedSoilMaterial("lockBody", () => new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.72 })));
     lockBody.position.y = 0.02; lockBody.raycast = () => {}; lockGroup.add(lockBody);
-    const shackle = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.026, 6, 12, Math.PI), new THREE.MeshStandardMaterial({ color: 0xcbd5e1, roughness: 0.62 }));
+    const shackle = new THREE.Mesh(sharedSoilGeometry("shackle", () => new THREE.TorusGeometry(0.07, 0.026, 6, 12, Math.PI)), sharedSoilMaterial("shackle", () => new THREE.MeshStandardMaterial({ color: 0xcbd5e1, roughness: 0.62 })));
     shackle.rotation.x = Math.PI / 2; shackle.position.y = 0.12; shackle.raycast = () => {}; lockGroup.add(shackle);
     lockGroup.raycast = () => {}; soil.add(lockGroup);
 
@@ -80,7 +88,7 @@ function addSoilVisualToPlot(plotMesh, unlocked) {
     wetShape.lineTo(-wetW, -wetD + wetR);
     wetShape.quadraticCurveTo(-wetW, -wetD, -wetW + wetR, -wetD);
     const wetSurface = new THREE.Mesh(
-        new THREE.ShapeGeometry(wetShape, 3),
+        sharedSoilGeometry("wetSurface", () => new THREE.ShapeGeometry(wetShape, 3)),
         new THREE.MeshStandardMaterial({ color: 0x063a63, roughness: 0.28, metalness: 0.04, transparent: true, opacity: 0.82, side: THREE.DoubleSide })
     );
     wetSurface.rotation.x = -Math.PI / 2;
@@ -89,16 +97,118 @@ function addSoilVisualToPlot(plotMesh, unlocked) {
     wetSurface.receiveShadow = true;
     wetSurface.raycast = () => {};
     wetGroup.add(wetSurface);
-    const wetMat = new THREE.MeshStandardMaterial({ color: 0x1f5f8b, roughness: 0.2, metalness: 0.05, transparent: true, opacity: 0.86 });
+    const wetMat = sharedSoilMaterial("puddle", () => new THREE.MeshStandardMaterial({ color: 0x1f5f8b, roughness: 0.2, metalness: 0.05, transparent: true, opacity: 0.86 }));
     [[-0.48,-0.2,0.24,0.08],[0.02,0.28,0.34,0.075],[0.45,-0.52,0.18,0.06]].forEach(([x,z,sx,sy]) => {
-        const puddle = new THREE.Mesh(new THREE.CircleGeometry(1, 12), wetMat);
+        const puddle = new THREE.Mesh(sharedSoilGeometry("puddle", () => new THREE.CircleGeometry(1, 12)), wetMat);
         puddle.rotation.x = -Math.PI / 2; puddle.position.set(x, 0.121, z); puddle.scale.set(sx, sy, 1); puddle.raycast = () => {}; wetGroup.add(puddle);
     });
     soil.add(wetGroup);
 
     plotMesh.add(soil); plotMesh.userData.soilVisual = soil;
+    plotMesh.userData.soilRefs = {base,top,rim,lock:lockGroup,wetDetails:wetGroup,wetSurface};
+    if (typeof registerGameAssetTarget === 'function') registerGameAssetTarget(soil, 'soil');
 }
 
+
+// Gộp 3 rãnh và 4 cục đất của mỗi ô thành 2 draw-call instanced.
+// Các mesh mặt đất/hitbox/trạng thái khóa-tưới vẫn độc lập để giữ gameplay.
+function buildSoilDetailInstances() {
+    if (soilFurrowInstances) { scene.remove(soilFurrowInstances); soilFurrowInstances.geometry.dispose(); soilFurrowInstances = null; }
+    if (soilClodInstances) { scene.remove(soilClodInstances); soilClodInstances.geometry.dispose(); soilClodInstances = null; }
+    const count = plotMeshes.length;
+    if (!count) return;
+    const furrowGeo = new THREE.BoxGeometry(1.28, 0.018, 0.055);
+    const furrowMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1 });
+    soilFurrowInstances = new THREE.InstancedMesh(furrowGeo, furrowMat, count * 3);
+    soilFurrowInstances.name = 'soilFurrowInstances';
+    soilFurrowInstances.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+    const clodGeo = new THREE.IcosahedronGeometry(1, 0);
+    const clodMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1 });
+    soilClodInstances = new THREE.InstancedMesh(clodGeo, clodMat, count * 4);
+    soilClodInstances.name = 'soilClodInstances';
+    soilClodInstances.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+    const dummy = new THREE.Object3D();
+    const furrowOffsets = [-0.48, 0, 0.48];
+    const clodOffsets = [[-0.63,-0.62],[0.57,-0.34],[-0.52,0.36],[0.48,0.58]];
+    plotMeshes.forEach((plot, i) => {
+        furrowOffsets.forEach((z, j) => {
+            dummy.position.set(plot.position.x + (j - 1) * 0.025, plot.position.y + 0.115, plot.position.z + z);
+            dummy.rotation.set(0, (j - 1) * 0.035, 0); dummy.scale.set(1, 1, 1); dummy.updateMatrix();
+            const idx = i * 3 + j; soilFurrowInstances.setMatrixAt(idx, dummy.matrix);
+            soilFurrowInstances.setColorAt(idx, new THREE.Color(0x754522));
+        });
+        clodOffsets.forEach(([x,z], j) => {
+            dummy.position.set(plot.position.x + x, plot.position.y + 0.128, plot.position.z + z);
+            dummy.rotation.set(0, 0, 0); dummy.scale.set(0.045 + (j % 2) * 0.012, (0.045 + (j % 2) * 0.012) * 0.55, (0.045 + (j % 2) * 0.012) * 0.8); dummy.scale.x *= 1.35; dummy.updateMatrix();
+            const idx = i * 4 + j; soilClodInstances.setMatrixAt(idx, dummy.matrix);
+            soilClodInstances.setColorAt(idx, new THREE.Color(0xc58a55));
+        });
+    });
+    soilFurrowInstances.instanceMatrix.needsUpdate = true; soilClodInstances.instanceMatrix.needsUpdate = true;
+    soilFurrowInstances.castShadow = false; soilFurrowInstances.receiveShadow = false;
+    soilClodInstances.castShadow = false; soilClodInstances.receiveShadow = false;
+    scene.add(soilFurrowInstances, soilClodInstances);
+    updateSoilDetailInstanceColors();
+}
+function updateSoilDetailInstanceColors() {
+    if (!soilFurrowInstances || !soilClodInstances) return;
+    plotMeshes.forEach((_, i) => {
+        const plot = gameState.plots?.[i] || {};
+        const unlocked = !!gameState.unlockedPlots?.[i];
+        const wet = unlocked && !!plot.watered;
+        const furrowHex = !unlocked ? soilDetailInstanceColors.locked : wet ? soilDetailInstanceColors.wet : soilDetailInstanceColors.dry;
+        const clodHex = !unlocked ? soilDetailInstanceColors.lockedClod : wet ? soilDetailInstanceColors.wetClod : soilDetailInstanceColors.dryClod;
+        for (let j = 0; j < 3; j++) soilFurrowInstances.setColorAt(i * 3 + j, new THREE.Color(furrowHex));
+        for (let j = 0; j < 4; j++) soilClodInstances.setColorAt(i * 4 + j, new THREE.Color(clodHex));
+    });
+    if (soilFurrowInstances.instanceColor) soilFurrowInstances.instanceColor.needsUpdate = true;
+    if (soilClodInstances.instanceColor) soilClodInstances.instanceColor.needsUpdate = true;
+}
+
+// FIX79 hybrid: one InstancedMesh per compatible procedural soil layer.
+// Gameplay hitboxes, soilVisual and references remain intact for interactions/GLB fallback.
+const soilBatches = new Map();
+const soilBatchDummy = new THREE.Object3D();
+function buildSoilBatches() {
+    soilBatches.forEach(batch => { scene.remove(batch.mesh); batch.mesh.dispose?.(); batch.mesh.material.dispose(); });
+    soilBatches.clear();
+    const specs = ['base','top','rim'];
+    specs.forEach(key => {
+        const samples = plotMeshes.map(p => p.userData.soilRefs?.[key]);
+        if (samples.some(m => !m || !m.isMesh)) return;
+        const material = samples[0].material.clone();
+        material.color.set(0xffffff);
+        const batch = new THREE.InstancedMesh(samples[0].geometry, material, samples.length);
+        batch.name = 'soilBatch-' + key;
+        batch.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+        batch.receiveShadow = true;
+        batch.raycast = () => {};
+        samples.forEach((mesh,i) => {
+            mesh.updateMatrixWorld(true);
+            soilBatchDummy.position.setFromMatrixPosition(mesh.matrixWorld);
+            mesh.getWorldQuaternion(soilBatchDummy.quaternion);
+            mesh.getWorldScale(soilBatchDummy.scale);
+            soilBatchDummy.updateMatrix();
+            batch.setMatrixAt(i,soilBatchDummy.matrix);
+            mesh.visible = false;
+        });
+        batch.instanceMatrix.needsUpdate = true;
+        scene.add(batch);
+        soilBatches.set(key,{mesh:batch,samples});
+    });
+    updateSoilBatchColors();
+}
+function updateSoilBatchColors() {
+    if (!soilBatches.size) return;
+    soilBatches.forEach(({mesh,samples}) => {
+        samples.forEach((sample,i) => mesh.setColorAt(i,sample.material.color));
+        if(mesh.instanceColor)mesh.instanceColor.needsUpdate = true;
+    });
+}
+function setSoilBatchVisibility(visible) {
+    soilBatches.forEach(({mesh}) => {mesh.visible=visible;});
+}
+window.FarmSoilBatch = { setVisible:setSoilBatchVisibility, getStats:() => ({layers:soilBatches.size, plots:plotMeshes.length}) };
 
 // Xây dựng Lưới 48 Ô Đất
 function buildPlotsGrid() {
@@ -115,7 +225,7 @@ function buildPlotsGrid() {
 
         const isUnlocked = !!(gameState.unlockedPlots && gameState.unlockedPlots[i]);
         const plotMesh = new THREE.Mesh(
-            new THREE.BoxGeometry(1.8, 0.2, 1.8),
+            sharedSoilGeometry("hitbox", () => new THREE.BoxGeometry(1.8, 0.2, 1.8)),
             // Invisible gameplay hitbox: visual soil is attached as a child below.
             new THREE.MeshStandardMaterial({ color: isUnlocked ? 0xc28544 : 0x475569, roughness: 0.9, transparent: true, opacity: 0 })
         );
@@ -130,6 +240,10 @@ function buildPlotsGrid() {
         plotMeshes.push(plotMesh);
         updatePlotVisual(i, true);
     }
+
+    buildSoilDetailInstances();
+    updatePlotColorsByLevel();
+    buildSoilBatches();
 
     if (safePlots.length < CONFIG.TOTAL_PLOTS) {
         while (gameState.plots.length < CONFIG.TOTAL_PLOTS) {
@@ -157,14 +271,7 @@ function updatePlotColorsByLevel() {
         const levelReady = gameState.level >= req;
         const wet = unlocked && !!plot.watered;
         const soil = mesh.userData && mesh.userData.soilVisual;
-        const base = soil?.getObjectByName('soilBase');
-        const top = soil?.getObjectByName('soilTop');
-        const rim = soil?.getObjectByName('soilStatusRim');
-        const lock = soil?.getObjectByName('soilLockBadge');
-        const wetDetails = soil?.getObjectByName('soilWetDetails');
-        const wetSurface = soil?.getObjectByName('soilWetSurface');
-        const furrows = [1, 2, 3].map(n => soil?.getObjectByName(`soilFurrow${n}`)).filter(Boolean);
-        const clods = [1, 2, 3, 4].map(n => soil?.getObjectByName(`soilClod${n}`)).filter(Boolean);
+        const {base,top,rim,lock,wetDetails,wetSurface} = mesh.userData.soilRefs || {};
 
         // Trạng thái visual tách biệt hoàn toàn: khóa / đã mở / đã tưới.
         // Khi ướt, đổi trực tiếp palette của MẶT ĐẤT và toàn bộ chi tiết nâu,
@@ -174,8 +281,6 @@ function updatePlotColorsByLevel() {
             if (base?.material) base.material.color.setHex(levelReady ? 0x4b5563 : 0x303844);
             if (top?.material) top.material.color.setHex(levelReady ? 0x66717d : 0x3f4750);
             if (rim?.material) rim.material.color.setHex(levelReady ? 0x9ca3af : 0x475569);
-            furrows.forEach(f => f.material.color.setHex(0x34404b));
-            clods.forEach(c => c.material.color.setHex(0x7b8792));
             if (lock) lock.visible = true;
             if (wetDetails) wetDetails.visible = false;
         } else if (wet) {
@@ -185,8 +290,6 @@ function updatePlotColorsByLevel() {
             if (base?.material) { base.material.color.setHex(0x062238); base.material.roughness = 0.46; }
             if (top?.material) { top.material.color.setHex(0x083b57); top.material.roughness = 0.30; }
             if (rim?.material) rim.material.color.setHex(0x0b5475);
-            furrows.forEach(f => { f.material.color.setHex(0x031b2a); f.material.roughness = 0.34; });
-            clods.forEach(c => { c.material.color.setHex(0x14506b); c.material.roughness = 0.28; });
             if (wetSurface?.material) {
                 // Chỉ giữ lớp này làm highlight/bóng nước, không dùng nó để nhuộm nền.
                 wetSurface.material.color.setHex(0x1a6b8f);
@@ -200,13 +303,13 @@ function updatePlotColorsByLevel() {
             if (base?.material) base.material.color.setHex(0x9a5d34);
             if (top?.material) top.material.color.setHex(0xb97943);
             if (rim?.material) rim.material.color.setHex(0x7d4a2b);
-            furrows.forEach(f => { f.material.color.setHex(0x754522); f.material.roughness = 1; });
-            clods.forEach(c => { c.material.color.setHex(0xc58a55); c.material.roughness = 1; });
             if (wetSurface?.material) wetSurface.material.opacity = 0.82;
             if (lock) lock.visible = false;
             if (wetDetails) wetDetails.visible = false;
         }
     });
+    updateSoilDetailInstanceColors();
+    updateSoilBatchColors();
 }
 
 
@@ -237,6 +340,103 @@ function updateGrowingCropVisuals(now = Date.now()) {
     }
 }
 
+
+// Shared crop resources: crop meshes keep their individual transforms and shadows,
+// while repeated geometry/material allocations are reused across all 48 plots.
+const cropGeometryCache = new Map();
+const cropMaterialCache = new Map();
+function getCropGeometry(key, factory) {
+    if (!cropGeometryCache.has(key)) cropGeometryCache.set(key, factory());
+    return cropGeometryCache.get(key);
+}
+function getCropMaterial(key, options) {
+    if (!cropMaterialCache.has(key)) cropMaterialCache.set(key, new THREE.MeshStandardMaterial(options));
+    return cropMaterialCache.get(key);
+}
+function getCropBasicMaterial(key, options) {
+    const cacheKey = `basic-${key}`;
+    if (!cropMaterialCache.has(cacheKey)) cropMaterialCache.set(cacheKey, new THREE.MeshBasicMaterial(options));
+    return cropMaterialCache.get(cacheKey);
+}
+function clearCropGroup(group) {
+    if (!group) return;
+    // Keep cached geometry/material alive; they are shared by other crops.
+    while (group.children.length) group.remove(group.children[group.children.length - 1]);
+    group.rotation.set(0, 0, 0);
+    group.scale.set(1, 1, 1);
+    group.position.set(0, 0, 0);
+}
+
+// FIX 70: thử tải model GLB cho cây trồng; nếu thiếu asset hoặc loader lỗi,
+// giữ nguyên cây procedural. Mỗi ô chỉ nhận kết quả nếu crop/group chưa đổi.
+const cropAssetPending = new Map();
+function tryApplyCropAsset(idx, cropKey, group, ratio) {
+    if (!window.FarmAssetManager || !cropKey || !group) return;
+    const assetId = 'crop.' + cropKey;
+    const def = window.FarmAssetManager.getDefinition(assetId);
+    const testConfig = window.FarmCropAssetTest && window.FarmCropAssetTest.config[cropKey];
+    if (!def || (def.status !== 'ready' && !(testConfig && testConfig.url))) return;
+    const mesh = plotMeshes[idx];
+    const plot = gameState.plots[idx];
+    if (!mesh || !plot || plot.isDead || plot.cropId !== cropKey) return;
+    const requestKey = idx + ':' + assetId + ':' + (mesh.userData.cropVisualStage ?? -1);
+    if (cropAssetPending.get(idx) === requestKey) return;
+    cropAssetPending.set(idx, requestKey);
+    const loadPromise = (testConfig && testConfig.url && typeof window.loadCropAssetTestModel === 'function')
+        ? window.loadCropAssetTestModel(cropKey)
+        : window.FarmAssetManager.loadModel(assetId);
+    loadPromise.then(function (model) {
+        if (!model) return; // asset chưa được đặt hoặc không đọc được: giữ fallback
+        const currentMesh = plotMeshes[idx];
+        const currentPlot = gameState.plots[idx];
+        if (!currentMesh || !currentPlot || currentPlot.isDead || currentPlot.cropId !== cropKey || currentMesh.userData.cropMesh !== group || currentMesh.userData.cropVisualStage !== getCropVisualStage(currentPlot)) {
+            // Không gắn model đã tải về một ô đã đổi cây/trạng thái.
+            model.traverse(function (node) {
+                if (node && node.isMesh) {
+                    // Geometry/material của model cache đang được chia sẻ; không dispose.
+                }
+            });
+            return;
+        }
+        window.FarmAssetManager.applyTransform(model, assetId);
+        if (testConfig && testConfig.url && window.FarmAssetStudio) window.FarmAssetStudio.normalize(model, cropKey, true);
+        // FIX71: transform chỉnh trong tool được áp riêng lên từng instance.
+        const cfg = window.FarmCropAssetTest && window.FarmCropAssetTest.config[cropKey];
+        const userScale = cfg && Number.isFinite(Number(cfg.scale)) ? Number(cfg.scale) : 1;
+        const growth = 0.55 + Math.max(0, Math.min(1, Number(ratio) || 0)) * 0.99;
+        model.scale.multiplyScalar(growth * userScale);
+        if (cfg) model.position.set(Number(cfg.x)||0, model.position.y + (Number(cfg.y)||0), Number(cfg.z)||0);
+        model.userData.cropAssetBaseScale = growth * (model.userData.studioNormalized ? model.scale.x / Math.max(0.00001, growth * userScale) : 1);
+        model.userData.cropAssetBaseY = model.position.y - (cfg ? (Number(cfg.y)||0) : 0);
+        model.name = 'cropAsset:' + cropKey;
+        model.traverse(function (node) {
+            if (node && node.isMesh) {
+                node.castShadow = true;
+                node.receiveShadow = true;
+            }
+        });
+        // Chỉ xóa các mesh procedural của group này; tài nguyên dùng chung được giữ cache.
+        while (group.children.length) group.remove(group.children[group.children.length - 1]);
+        group.add(model);
+        group.userData.usingAsset = true;
+        group.userData.cropAssetModel = model;
+        group.userData.cropAssetKey = cropKey;
+        if(window.FarmCropAnimation)FarmCropAnimation.attach(model,cropKey,idx);
+        if (currentPlot.hasPest) {
+            const pest = new THREE.Mesh(
+                getCropGeometry('pest-sphere-8-8', () => new THREE.SphereGeometry(0.18, 8, 8)),
+                getCropBasicMaterial('pest-purple', { color: 0x9333ea })
+            );
+            pest.position.set(0, 0.72 + (Number(ratio) || 0) * 0.35, 0);
+            group.add(pest);
+        }
+    }).catch(function (error) {
+        if (window.console && console.warn) console.warn('[CropAssets] Lỗi tải ' + assetId + '; dùng model procedural.', error);
+    }).finally(function () {
+        if (cropAssetPending.get(idx) === requestKey) cropAssetPending.delete(idx);
+    });
+}
+
 // Cập nhật hình ảnh Cây trồng trên ô đất 3D
 function updatePlotVisual(idx, fullRebuild = false) {
     const mesh = plotMeshes[idx];
@@ -246,20 +446,24 @@ function updatePlotVisual(idx, fullRebuild = false) {
 
     updatePlotColorsByLevel();
 
-    if (mesh.userData.cropMesh) {
-        mesh.remove(mesh.userData.cropMesh);
-        mesh.userData.cropMesh = null;
+    let group = mesh.userData.cropMesh;
+    if (group) {
+        mesh.remove(group);
+        clearCropGroup(group);
+    } else {
+        group = new THREE.Group();
+        group.name = 'cropVisualPool';
     }
     mesh.userData.cropVisualStage = getCropVisualStage(plot);
 
     if (gameState.unlockedPlots[idx] && plot.cropId) {
-        const group = new THREE.Group();
         const crop = CROPS_DB[plot.cropId];
         if (!crop) return;
 
         if (plot.isDead) {
-            const deadMat = new THREE.MeshStandardMaterial({ color: 0x78350f });
-            const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.6), deadMat);
+            const deadMat = getCropMaterial('dead-plant', { color: 0x78350f, roughness: 0.86 });
+            const stemGeo = getCropGeometry('dead-stem', () => new THREE.CylinderGeometry(0.05, 0.05, 0.6));
+            const stem = new THREE.Mesh(stemGeo, deadMat);
             stem.position.y = 0.3;
             stem.rotation.z = 0.4;
             group.add(stem);
@@ -274,22 +478,23 @@ function updatePlotVisual(idx, fullRebuild = false) {
             const mature = ratio >= 0.82;
             // Cây non bắt đầu nhỏ, tăng dần đến kích thước trưởng thành.
             const growth = 0.55 + Math.min(1, ratio) * 0.99;
-            const leafMat = new THREE.MeshStandardMaterial({ color: mature ? 0x4b9a36 : 0x67ad43, roughness: 0.84 });
-            const darkLeafMat = new THREE.MeshStandardMaterial({ color: 0x286d32, roughness: 0.88 });
-            const stemMat = new THREE.MeshStandardMaterial({ color: 0x397d36, roughness: 0.86 });
+            const leafMat = getCropMaterial(mature ? 'leaf-mature' : 'leaf-young', { color: mature ? 0x4b9a36 : 0x67ad43, roughness: 0.84 });
+            const darkLeafMat = getCropMaterial('leaf-dark', { color: 0x286d32, roughness: 0.88 });
+            const stemMat = getCropMaterial('stem-green', { color: 0x397d36, roughness: 0.86 });
             const produceColors = { tomato: 0xe94343, pumpkin: 0xf28b22, watermelon: 0x2c9c55, strawberry: 0xe83e5a, potato: 0xb98a52, carrot: 0xf47b20, eggplant: 0x7544a8, chili: 0xe63b2e, corn: 0xf4c430, pineapple: 0xdca92c, rice: 0xd9bd55 };
-            const produceMat = new THREE.MeshStandardMaterial({ color: produceColors[cropKey] || 0x85a83d, roughness: 0.62 });
+            const produceHex = produceColors[cropKey] || 0x85a83d;
+            const produceMat = getCropMaterial(`produce-${produceHex}`, { color: produceHex, roughness: 0.62 });
             const sphere = (x,y,z,sx,sy,sz,mat,rz=0) => {
-                const o = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 10), mat);
+                const o = new THREE.Mesh(getCropGeometry('sphere-14-10', () => new THREE.SphereGeometry(1, 14, 10)), mat);
                 o.position.set(x,y,z); o.scale.set(sx,sy,sz); o.rotation.z=rz;
                 o.castShadow=true; o.receiveShadow=true; group.add(o); return o;
             };
             const blade = (x,y,z,h,w,mat,rz=0) => {
-                const o = new THREE.Mesh(new THREE.ConeGeometry(w,h,6),mat);
+                const o = new THREE.Mesh(getCropGeometry(`cone-${w}-${h}-6`, () => new THREE.ConeGeometry(w,h,6)),mat);
                 o.position.set(x,y,z); o.rotation.z=rz; o.castShadow=true; group.add(o); return o;
             };
             const stem = (x,z,h,r=0.045) => {
-                const o = new THREE.Mesh(new THREE.CylinderGeometry(r*0.72,r,h,8),stemMat);
+                const o = new THREE.Mesh(getCropGeometry(`stem-cylinder-${r}-${h}-8`, () => new THREE.CylinderGeometry(r*0.72,r,h,8)),stemMat);
                 o.position.set(x,h/2,z); o.castShadow=true; group.add(o); return o;
             };
             // Growth changes the size, while crop type determines the silhouette and harvestable produce.
@@ -310,7 +515,7 @@ function updatePlotVisual(idx, fullRebuild = false) {
                     }
                     if(mature){
                         const head=new THREE.Group();
-                        const headStem=new THREE.Mesh(new THREE.CylinderGeometry(0.009,0.012,0.23*growth,5),stemMat);
+                        const headStem=new THREE.Mesh(getCropGeometry(`rice-head-stem-${growth}`, () => new THREE.CylinderGeometry(0.009,0.012,0.23*growth,5)),stemMat);
                         headStem.position.y=0.115*growth; headStem.rotation.z=-0.24; head.add(headStem);
                         for(let k=0;k<7;k++){
                             const side=k%2?1:-1;
@@ -331,7 +536,7 @@ function updatePlotVisual(idx, fullRebuild = false) {
                 }
                 if(mature || ratio>0.55){
                     sphere(0.075,h*0.58,0.02,0.12,0.25,0.105,produceMat,-0.12);
-                    for(let i=0;i<7;i++) sphere(0.075+(i%2)*0.012,h*0.54-0.13+i*0.035,0.105,0.012,0.026,0.012,new THREE.MeshStandardMaterial({color:0xffe16b,roughness:0.7}));
+                    for(let i=0;i<7;i++) sphere(0.075+(i%2)*0.012,h*0.54-0.13+i*0.035,0.105,0.012,0.026,0.012,getCropMaterial('corn-silk', {color:0xffe16b,roughness:0.7}));
                 }
             } else if (cropKey === 'carrot') {
                 // Carrot: one enlarged root with a compact leaf crown above it.
@@ -431,8 +636,9 @@ function updatePlotVisual(idx, fullRebuild = false) {
                 if(mature) sphere(0,0.30,0,0.14,0.15,0.14,produceMat);
             }
             if (plot.hasPest) {
-                const pestMat = new THREE.MeshBasicMaterial({ color: 0x9333ea });
-                const pest = new THREE.Mesh(new THREE.SphereGeometry(0.18, 8, 8), pestMat);
+                const pestMat = getCropBasicMaterial('pest-purple', { color: 0x9333ea });
+                const pestGeo = getCropGeometry('pest-sphere-8-8', () => new THREE.SphereGeometry(0.18, 8, 8));
+                const pest = new THREE.Mesh(pestGeo, pestMat);
                 pest.position.set(0, 0.72 + ratio * 0.35, 0);
                 group.add(pest);
             }
@@ -440,6 +646,12 @@ function updatePlotVisual(idx, fullRebuild = false) {
 
         mesh.add(group);
         mesh.userData.cropMesh = group;
+        if (!plot.isDead) {
+            const cropKeyForAsset = String(plot.cropId || '').toLowerCase();
+            const effTimeForAsset = Math.max(1, (Number(crop.growTime) || 1) - Math.max(0, Number(plot.reducedSecs) || 0));
+            const ratioForAsset = Math.max(0, Math.min(1, (Date.now() - (Number(plot.plantedAt) || Date.now())) / 1000 / effTimeForAsset));
+            tryApplyCropAsset(idx, cropKeyForAsset, group, ratioForAsset);
+        }
     }
 }
 
@@ -588,6 +800,7 @@ function handlePlotClick(idx) {
 
 // Mở Modal chọn hạt giống
 function openSeedModal() {
+    if (window.FarmQuickCare) { FarmQuickCare.hide(); openQuickSeed('crop'); return; }
     const list = document.getElementById('seed-list');
     if (!list) return;
 
@@ -642,6 +855,7 @@ function plantSeed(cropKey) {
     };
     updatePlotVisual(selectedPlotIdx, true);
     closeModal('modal-seeds');
+    if(window.FarmQuickCare)FarmQuickCare.hide();
     if (typeof playFarmSound === 'function') playFarmSound('plant');
     showToast("Đã Trồng Cây! 🌱", `Gieo hạt ${CROPS_DB[cropKey].name} thành công!`, "✨");
     saveGame();
@@ -693,4 +907,12 @@ function upgradePlotLevel(idx) {
     if (gameState.gold < cost) { showToast('Chưa đủ vàng', `Cần ${cost.toLocaleString()} vàng.`, '🪙'); return; }
     gameState.gold -= cost; plot.plotLevel = next; updateUI(); updatePlotVisual(idx, true); saveGame(); openPlotUpgradeModal();
     showToast('Nâng cấp ô đất thành công', `Ô ${idx+1} lên cấp ${next}, sản lượng x${next}.`, '🌟');
+}
+
+// FIX74: shared plot decorations are drawn as 2 instanced batches, not 48 independent sets.
+// Hide those procedural details while the full custom soil model is active.
+function setCustomSoilDetailsVisible(visible) {
+    if (soilFurrowInstances) soilFurrowInstances.visible=visible;
+    if (soilClodInstances) soilClodInstances.visible=visible;
+    setSoilBatchVisibility(visible);
 }

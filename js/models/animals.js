@@ -147,6 +147,7 @@ function createChickenModel(data) {
     group.userData = { type: 'chicken_pen' };
     group.traverse(node => { if (node.isMesh) { node.castShadow = true; node.receiveShadow = true; } });
     scene.add(group);
+    if (typeof registerGameAssetTarget === 'function') registerGameAssetTarget(group, 'chicken');
     return group;
 }
 
@@ -199,6 +200,7 @@ function createCowModel(data) {
     group.position.set(data.x, 0, data.z);
     group.userData = { type: 'cow_barn' };
     scene.add(group);
+    if (typeof registerGameAssetTarget === 'function') registerGameAssetTarget(group, 'cow');
     return group;
 }
 
@@ -244,6 +246,7 @@ function createPigModel(data) {
     group.position.set(data.x, 0, data.z);
     group.userData = { type: 'pig_pen' };
     scene.add(group);
+    if (typeof registerGameAssetTarget === 'function') registerGameAssetTarget(group, 'pig');
     return group;
 }
 
@@ -265,28 +268,36 @@ function buildPigPen() {
     updateAnimalPen3DMeshes('pig');
 }
 
+const animalModelPools = { chicken: [], cow: [], pig: [] };
+function recycleAnimalModels(type, items) {
+    const pool = animalModelPools[type];
+    items.forEach(item => {
+        if (!item || !item.mesh) return;
+        scene.remove(item.mesh);
+        item.mesh.visible = false;
+        pool.push(item.mesh);
+    });
+}
+function acquireAnimalModel(type, data) {
+    const pool = animalModelPools[type];
+    const mesh = pool.length ? pool.pop() : (type === 'chicken' ? createChickenModel(data) : type === 'cow' ? createCowModel(data) : createPigModel(data));
+    mesh.visible = true;
+    mesh.position.set(Number(data.x) || 0, 0, Number(data.z) || 0);
+    mesh.rotation.set(0, 0, 0);
+    if (!mesh.parent) scene.add(mesh);
+    return mesh;
+}
+
 function updateAnimalPen3DMeshes(type) {
     if (type === 'chicken') {
-        chickenMeshes.forEach(item => scene.remove(item.mesh));
-        chickenMeshes = [];
-        gameState.chickens.forEach(data => {
-            const mesh = createChickenModel(data);
-            chickenMeshes.push({ mesh, data });
-        });
+        recycleAnimalModels('chicken', chickenMeshes); chickenMeshes = [];
+        gameState.chickens.forEach(data => chickenMeshes.push({ mesh: acquireAnimalModel('chicken', data), data }));
     } else if (type === 'cow') {
-        cowMeshes.forEach(item => scene.remove(item.mesh));
-        cowMeshes = [];
-        gameState.cows.forEach(data => {
-            const mesh = createCowModel(data);
-            cowMeshes.push({ mesh, data });
-        });
+        recycleAnimalModels('cow', cowMeshes); cowMeshes = [];
+        gameState.cows.forEach(data => cowMeshes.push({ mesh: acquireAnimalModel('cow', data), data }));
     } else if (type === 'pig') {
-        pigMeshes.forEach(item => scene.remove(item.mesh));
-        pigMeshes = [];
-        gameState.pigs.forEach(data => {
-            const mesh = createPigModel(data);
-            pigMeshes.push({ mesh, data });
-        });
+        recycleAnimalModels('pig', pigMeshes); pigMeshes = [];
+        gameState.pigs.forEach(data => pigMeshes.push({ mesh: acquireAnimalModel('pig', data), data }));
     }
 }
 
@@ -410,7 +421,7 @@ function openAnimalPenModal(penType) {
         'pen-medicine-count': `x${medicineCount}`
     };
     Object.entries(counterLabels).forEach(([id, value]) => { const el = document.getElementById(id); if (el) el.textContent = value; });
-    openModal('modal-animal-pen');
+    if (window.quickPenType === penType) { renderQuickPen(penType); } else { openModal('modal-animal-pen'); }
 }
 
 // Làm mới số lượng trên các nút mà không dựng lại nội dung modal mỗi giây.
@@ -643,3 +654,49 @@ function executePenAction(action) {
 }
 
 function upgradeAnimalPen(){if(!currentPenType)return;const levels=gameState.penLevels||(gameState.penLevels={chicken:1,cow:1,pig:1});const lvl=Number(levels[currentPenType])||1;if(lvl>=5){showToast('Chuồng đã tối đa','Chuồng đã đạt cấp 5.','ℹ️');return;}const cost=lvl*1000;if(gameState.gold<cost){showToast('Thiếu vàng',`Cần ${cost} vàng để nâng cấp chuồng.`,'❌');return;}gameState.gold-=cost;levels[currentPenType]=lvl+1;const fence=animalPenFenceMeshes[currentPenType];if(fence){const scale=1+(levels[currentPenType]-1)*0.12;fence.scale.set(scale,1,scale);}updateUI();saveGame();openAnimalPenModal(currentPenType);showToast('Nâng cấp chuồng thành công',`Chuồng ${currentPenType} lên cấp ${lvl+1}, sức chứa ${2+lvl*2} con.`,'✨');}
+
+// FIX77: compact pen management uses existing gameplay actions, no modal overlay.
+window.quickPenType=null;
+function openQuickPen(penType){
+ window.quickPenType=penType;
+ openAnimalPenModal(penType);
+ document.getElementById('modal-animal-pen')?.classList.add('hidden');
+}
+function closeQuickPen(){window.quickPenType=null;if(window.FarmQuickCare)FarmQuickCare.hide();else document.getElementById('quick-pen-panel')?.classList.add('hidden');}
+function renderQuickPen(penType){
+ const panel=document.getElementById('quick-pen-panel'),container=document.getElementById('quick-pen-actions');if(!panel||!container)return;
+ const items=gameState[penType==='chicken'?'chickens':penType==='cow'?'cows':'pigs']||[];
+ const inv=gameState.inventory||{},now=Date.now();
+ const timing={chicken:[300,180],cow:[600,360],pig:[900,480]}[penType];
+ const feed=items.filter(a=>(a.hunger===undefined?100:a.hunger)<=40||a.hungry).length;
+ const sick=items.filter(a=>a.sick).length;
+ const ready=items.filter(a=>{
+   if(a.sick||(a.hunger!==undefined&&Number(a.hunger)<=0))return false;
+   const born=Number(a.bornAt)||now;if((now-born)/1000<timing[0])return false;
+   if(penType==='pig')return true;
+   const last=Math.max(Number(a.producedAt)||0,born+timing[0]*1000);
+   return (now-last)/1000>=timing[1]&&(Number(a.yieldCount)||0)<10;
+ }).length;
+ const lvl=Number((gameState.penLevels||{})[penType])||1;
+ const free=Math.max(0,2+(lvl-1)*2-items.length);
+ const feedStock=Number(inv['feed_'+penType])||0,medStock=Number(inv.medicine)||0,animalStock=Number(inv['buy_'+penType])||0;
+ document.getElementById('quick-pen-title').textContent=({chicken:'🐔 Chuồng gà',cow:'🐄 Chuồng bò',pig:'🐷 Chuồng heo'})[penType]+' · Chăm sóc nhanh';
+ const options=[
+ ['feed','🌾 Cho ăn',feed,`Cần ${feed} cám · Có ${feedStock}`,feed===0],
+ ['harvest','🧺 Thu hoạch',ready,`Có thể thu ${ready} sản phẩm/con`,ready===0],
+ ['heal','💊 Chữa bệnh',sick,`Cần ${sick} thuốc · Có ${medStock}`,sick===0],
+ ['add','➕ Thêm nuôi',Math.min(free,animalStock),`Trống ${free} chỗ · Có ${animalStock} giống`,free===0||animalStock===0]
+ ];
+ if(window.FarmQuickCare){
+   FarmQuickCare.show(document.getElementById('quick-pen-title').textContent,options.map(([action,title,count,description,disabled])=>({label:title+' · '+count,detail:description,disabled,run:()=>{currentPenType=penType;executePenAction(action);},refresh:()=>{if(window.quickPenType===penType)renderQuickPen(penType)}})),4);
+   return;
+ }
+ container.replaceChildren();
+ options.forEach(([action,title,count,description,disabled])=>{
+   const btn=document.createElement('button');btn.type='button';btn.disabled=disabled;
+   const top=document.createElement('span');top.textContent=title+' · '+count;
+   const small=document.createElement('small');small.textContent=description;
+   btn.append(top,small);btn.onclick=()=>{currentPenType=penType;executePenAction(action);if(window.quickPenType===penType)renderQuickPen(penType);};container.append(btn);
+ });
+ panel.classList.remove('hidden');
+}

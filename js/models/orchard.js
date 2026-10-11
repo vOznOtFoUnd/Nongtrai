@@ -29,6 +29,12 @@ function buildOrchardArea() {
         mesh.receiveShadow = true;
         mesh.userData = { type: 'orchard', index: i };
         scene.add(mesh);
+        // The clickable orchard mesh remains the gameplay hitbox; model is its visual child.
+        const visualRoot=new THREE.Group();visualRoot.name='orchardPlotAssetVisual';
+        mesh.add(visualRoot);
+        // Original soil disk is the invisible clickable hitbox only after GLB loads.
+        visualRoot.userData.orchardHitbox=mesh;
+        if(typeof registerGameAssetTarget==='function')registerGameAssetTarget(visualRoot,'orchardSoil');
         orchardPlotMeshes.push(mesh);
         updateOrchardVisual(i);
     }
@@ -121,6 +127,7 @@ function updateOrchardVisual(idx) {
         group.userData.fruitGroup = fruitGroup;
         group.scale.setScalar(growthScale);
         mesh.add(group);
+        if (typeof registerGameAssetTarget === 'function') registerGameAssetTarget(group, tree.treeType || 'apple');
         mesh.userData.treeMesh = group;
     }
 }
@@ -249,6 +256,7 @@ function chopOrchardTree(idx) {
 // Mở Modal trồng Cây Giống
 function openSaplingModal(idx) {
     selectedPlotIdx = idx;
+    if (window.FarmQuickCare) { openQuickSeed('tree'); return; }
     const list = document.getElementById('sapling-list');
     if (!list) return;
 

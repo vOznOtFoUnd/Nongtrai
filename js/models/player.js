@@ -118,6 +118,7 @@ function create3DAvatar() {
     playerGroup.add(playerRightLeg);
 
     scene.add(playerGroup);
+    if (typeof registerGameAssetTarget === 'function') registerGameAssetTarget(playerGroup, 'player');
 }
 
 // Reset trạng thái các chi thể khi dừng bước

@@ -63,6 +63,7 @@ function build4CookingStoves() {
 
         group.userData = { type: 'stove', index: idx, warningSprite };
         scene.add(group);
+        if (typeof registerGameAssetTarget === 'function') registerGameAssetTarget(group, 'stove');
         stoveMeshes.push(group);
     });
 }
