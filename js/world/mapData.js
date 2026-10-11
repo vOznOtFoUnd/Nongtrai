@@ -3,7 +3,7 @@
  * Mỗi path là hình chữ nhật đi được; các đoạn giao nhau tạo thành mạng đường.
  */
 export const WORLD_MAP = {
-  version: 1.1,
+  version: 1.3,
   bounds: { minX: -15.45, maxX: 15.45, minZ: -15.45, maxZ: 15.45 },
   zones: {
     mainFarm: { name: 'Nông trại chính', x: 0, z: 0, width: 18, depth: 18, type: 'farm', unlocked: true },
@@ -34,5 +34,36 @@ export const WORLD_MAP = {
     { id: 'livestock-approach', x: 8.25, z: 9.9, width: 3.1, depth: 1.45 },
     { id: 'windmill-approach', x: 7.65, z: -9.1, width: 4.1, depth: 1.35 }
   ],
+  // Trang trí môi trường khai báo riêng để có thể chỉnh tọa độ mà không sửa logic dựng cảnh.
+  decorations: {
+    flowerBeds: [
+      { x: -14.0, z: 2.8, scale: 1.0 },
+      { x: -13.7, z: 7.2, scale: 0.85 },
+      { x: 13.5, z: 4.1, scale: 0.9 },
+      { x: 13.5, z: 7.6, scale: 0.8 },
+      { x: -4.8, z: 13.1, scale: 0.9 },
+      { x: 4.8, z: 13.1, scale: 0.9 },
+      { x: -4.6, z: -7.9, scale: 0.75 },
+      { x: 4.6, z: -7.9, scale: 0.75 }
+    ],
+    rocks: [
+      { x: -6.4, z: 12.7, scale: 0.85 },
+      { x: 6.4, z: 12.7, scale: 0.85 },
+      { x: -13.9, z: -8.5, scale: 0.8 },
+      { x: 13.6, z: -5.0, scale: 0.8 }
+    ],
+    // Bụi cây và cỏ chỉ nằm sát mép bản đồ/khu trang trí, không đặt trên lối đi chính.
+    bushes: [
+      { x: -14.0, z: -1.8, scale: 0.9 }, { x: -13.8, z: 5.0, scale: 0.8 },
+      { x: 13.8, z: 1.8, scale: 0.9 }, { x: 13.7, z: 9.0, scale: 0.75 },
+      { x: -5.9, z: 13.8, scale: 0.8 }, { x: 5.9, z: 13.8, scale: 0.8 },
+      { x: -14.0, z: -10.0, scale: 0.75 }, { x: 14.0, z: -12.4, scale: 0.7 }
+    ],
+    grassTufts: [
+      { x: -14.2, z: 0.0 }, { x: -14.1, z: 4.0 }, { x: -13.8, z: 9.0 },
+      { x: 13.9, z: -2.7 }, { x: 13.8, z: 6.0 }, { x: 12.8, z: 13.8 },
+      { x: -12.8, z: 13.8 }, { x: -7.0, z: -14.2 }, { x: 7.0, z: -14.2 }
+    ]
+  },
   spawn: { x: 0, z: 8 }
 };

@@ -47,7 +47,8 @@ export class GameScene {
     this.controls.maxPolarAngle = CONFIG.camera.maxPolarAngle;
     this.controls.minDistance = CONFIG.camera.minDistance;
     this.controls.maxDistance = CONFIG.camera.maxDistance;
-    this.controls.enablePan = true;
+    // Camera luôn theo sau Player; tắt pan để thao tác hai ngón không kéo lệch tâm bám.
+    this.controls.enablePan = false;
     this.controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
   }
 
@@ -312,7 +313,99 @@ export class GameScene {
       { zone: 'livestock', text: 'CHĂN NUÔI', color: '#557b3d' },
       { zone: 'lotusPond', text: 'AO SEN', color: '#246a88' }
     ];
-    labels.forEach(item => this._createSign(WORLD_MAP.zones[item.zone].x, WORLD_MAP.zones[item.zone].z, item.text, item.color));
+    labels.push(
+      { zone: 'storage', text: 'NHÀ KHO', color: '#8a5732' },
+      { zone: 'forest', text: 'KHU RỪNG', color: '#557b3d' },
+      { zone: 'windmill', text: 'CỐI XAY GIÓ', color: '#8a5732' },
+      { zone: 'teleportGate', text: 'CỔNG DỊCH CHUYỂN', color: '#465f91' }
+    );
+    labels.forEach(item => {
+      const zone = WORLD_MAP.zones[item.zone];
+      const zOffset = item.zone === 'teleportGate' ? 1.25 : (item.zone === 'storage' ? 1.0 : 0);
+      this._createSign(zone.x, zone.z + zOffset, item.text, item.color);
+    });
+    this._createWorldDecorations();
+  }
+
+  _createWorldDecorations() {
+    const decor = WORLD_MAP.decorations || {};
+    const flowerColors = [0xffd166, 0xf28ca8, 0xf7f4dc, 0xb8a1e3];
+    const stemMat = new THREE.MeshStandardMaterial({ color: 0x477b3d, roughness: 1 });
+    const petalMats = flowerColors.map(color => new THREE.MeshStandardMaterial({ color, roughness: 0.8 }));
+    const centerMat = new THREE.MeshStandardMaterial({ color: 0xffdf70, roughness: 0.8 });
+    const leafMat = new THREE.MeshStandardMaterial({ color: 0x4d994b, roughness: 1 });
+
+    // Hoa nhỏ được đặt ở mép các khu vực, không tạo collider để không ảnh hưởng di chuyển.
+    for (const bed of (decor.flowerBeds || [])) {
+      const group = new THREE.Group();
+      for (let i = 0; i < 5; i++) {
+        const a = i * Math.PI * 2 / 5;
+        const x = Math.cos(a) * 0.38 * bed.scale;
+        const z = Math.sin(a) * 0.3 * bed.scale;
+        const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.035, 0.34 * bed.scale, 5), stemMat);
+        stem.position.set(x, 0.17 * bed.scale, z); group.add(stem);
+        const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.10 * bed.scale, 6, 5), leafMat);
+        leaf.scale.set(1.35, 0.42, 0.75);
+        leaf.position.set(x + 0.08 * bed.scale, 0.12 * bed.scale, z + 0.05 * bed.scale); group.add(leaf);
+        const petals = new THREE.Mesh(new THREE.SphereGeometry(0.13 * bed.scale, 7, 5), petalMats[i % petalMats.length]);
+        petals.scale.set(1, 0.72, 1); petals.position.set(x, 0.38 * bed.scale, z); group.add(petals);
+        const center = new THREE.Mesh(new THREE.SphereGeometry(0.045 * bed.scale, 6, 4), centerMat);
+        center.position.set(x, 0.4 * bed.scale, z); group.add(center);
+      }
+      group.position.set(bed.x, 0, bed.z);
+      group.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+      this.scene.add(group);
+    }
+
+    const rockMat = new THREE.MeshStandardMaterial({ color: 0x929c8d, roughness: 0.98 });
+    for (const item of (decor.rocks || [])) {
+      const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(0.32 * item.scale, 0), rockMat);
+      rock.position.set(item.x, 0.16 * item.scale, item.z);
+      rock.scale.set(1.25, 0.7, 0.9);
+      rock.rotation.y = (item.x + item.z) * 0.17;
+      rock.castShadow = true; rock.receiveShadow = true;
+      this.scene.add(rock);
+    }
+
+    // Bụi cây tròn nhiều lớp, dùng chung vật liệu để giảm số lần tạo tài nguyên GPU.
+    const bushMats = [0x3f8b45, 0x55a34f, 0x6caf55].map(color => new THREE.MeshStandardMaterial({ color, roughness: 1 }));
+    const bushGeo = new THREE.SphereGeometry(0.42, 8, 6);
+    for (const item of (decor.bushes || [])) {
+      const bush = new THREE.Group();
+      for (let i = 0; i < 3; i++) {
+        const puff = new THREE.Mesh(bushGeo, bushMats[i]);
+        puff.position.set((i - 1) * 0.29 * item.scale, (0.25 + (i % 2) * 0.08) * item.scale, (i % 2 ? 0.12 : -0.08) * item.scale);
+        puff.scale.set(1.0, 0.82, 0.88); puff.castShadow = true; puff.receiveShadow = true; bush.add(puff);
+      }
+      bush.position.set(item.x, 0, item.z);
+      this.scene.add(bush);
+    }
+
+    // Bụi cỏ thấp ở rìa đất, không có collider và không phủ lên các đường đi.
+    const grassMat = new THREE.MeshStandardMaterial({ color: 0x76b957, roughness: 1, side: THREE.DoubleSide });
+    const grassGeo = new THREE.ConeGeometry(0.09, 0.34, 4);
+    for (const item of (decor.grassTufts || [])) {
+      const tuft = new THREE.Group();
+      for (let i = 0; i < 3; i++) {
+        const blade = new THREE.Mesh(grassGeo, grassMat);
+        blade.position.set((i - 1) * 0.11, 0.15, (i % 2) * 0.07);
+        blade.rotation.z = (i - 1) * 0.22; tuft.add(blade);
+      }
+      tuft.position.set(item.x, 0, item.z);
+      this.scene.add(tuft);
+    }
+
+    // Đèn lồng đôi đánh dấu quảng trường làng; đặt lệch tâm để không chắn vòi phun.
+    const lanternWood = new THREE.MeshStandardMaterial({ color: 0x79502f, roughness: 0.85 });
+    const lanternGlow = new THREE.MeshStandardMaterial({ color: 0xffd878, emissive: 0x9a5b12, emissiveIntensity: 0.45, roughness: 0.4 });
+    for (const x of [-2.35, 2.35]) {
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 1.55, 7), lanternWood);
+      post.position.set(x, 0.775, -12.8); post.castShadow = true; this.scene.add(post);
+      const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.42, 0.34), lanternGlow);
+      lamp.position.set(x, 1.72, -12.8); lamp.castShadow = true; this.scene.add(lamp);
+      const cap = new THREE.Mesh(new THREE.ConeGeometry(0.28, 0.18, 4), lanternWood);
+      cap.position.set(x, 2.02, -12.8); cap.rotation.y = Math.PI / 4; this.scene.add(cap);
+    }
   }
 
   _createForestCluster(zone) {
