@@ -35,6 +35,7 @@
           <button id="open-shop" class="utility-btn management-btn" type="button" title="Cửa hàng">🛒</button>
           <button id="open-inventory" class="utility-btn management-btn" type="button" title="Túi đồ">🎒</button>
           <button id="open-quests" class="utility-btn management-btn" type="button" title="Nhiệm vụ">📜</button>
+          <button id="open-assets" class="utility-btn management-btn" type="button" title="Quản lý model 3D">🧊</button>
         </div>
       </div>
       <div id="instructions" class="panel">
@@ -54,8 +55,9 @@
           <div id="management-content"></div>
         </section>
       </div>
-      <div id="player-controls" aria-label="Điều khiển nhân vật">
-        <button data-move="w" aria-label="Đi lên">▲</button><div><button data-move="a" aria-label="Đi trái">◀</button><button data-move="s" aria-label="Đi xuống">▼</button><button data-move="d" aria-label="Đi phải">▶</button></div>
+      <div id="mobile-joystick" aria-label="Joystick di chuyển nhân vật" role="application">
+        <div class="joystick-ring"><div class="joystick-direction" aria-hidden="true">＋</div><div id="joystick-knob" class="joystick-knob"></div></div>
+        <span class="joystick-caption">DI CHUYỂN</span>
       </div>
     </div>
   </div>
@@ -109,14 +111,16 @@
     async function startGame() {
       try {
         // Tải module động để có thể bắt lỗi import/CDN và hiện thông báo thay vì màn hình đen.
-        const [stateModule, sceneModule, uiModule, inputModule, timeModule, weatherModule, playerModule] = await Promise.all([
-          import('./js/state.js'),
-          import('./js/scene.js'),
-          import('./js/ui.js'),
-          import('./js/input.js'),
-          import('./js/time.js'),
-          import('./js/weather.js'),
-          import('./js/player.js')
+        const [stateModule, sceneModule, uiModule, inputModule, timeModule, weatherModule, playerModule, assetModule, previewModule] = await Promise.all([
+          import('./js/data/state.js'),
+          import('./js/world/scene.js'),
+          import('./js/ui/ui.js'),
+          import('./js/player/input.js'),
+          import('./js/systems/time.js'),
+          import('./js/systems/weather.js'),
+          import('./js/player/player.js'),
+          import('./js/assets/AssetManager.js'),
+          import('./js/assets/AssetPreview.js')
         ]);
 
         saveGame = stateModule.saveGame;
@@ -126,18 +130,24 @@
         const { GameTime } = timeModule;
         const { WeatherManager } = weatherModule;
         const { PlayerCharacter } = playerModule;
+        const { AssetManager } = assetModule;
+        const { AssetPreview } = previewModule;
+        // AssetManager là lớp mở rộng; model dựng sẵn vẫn được dùng nếu chưa có asset tùy chỉnh.
+        const assetManager = new AssetManager({ onError: error => console.warn('Asset tùy chỉnh:', error) });
+        window.farmAssetManager = assetManager; // API debug/tiện ích cho bước tích hợp model tiếp theo.
 
         const container = document.getElementById('game-container');
         ui = new UI();
         const gameScene = new GameScene(container, msg => ui.showMessage(msg));
-        new Input(gameScene.camera, gameScene.plotsGroup, gameScene.domElement);
         const player = new PlayerCharacter(
           gameScene.scene,
           gameScene.controls,
           msg => ui.showMessage(msg),
           () => gameScene.getPlayerCollisionData()
         );
+        new Input(gameScene.camera, gameScene.plotsGroup, gameScene.domElement, player);
         ui.setManagementContext(msg => ui.showMessage(msg));
+        ui.setAssetContext({ assetManager, player, AssetPreview, showMessage: msg => ui.showMessage(msg) });
 
         // Camera quick actions inspired by FIX80.7; only adjust the existing OrbitControls camera.
         const zoomCamera = factor => {
@@ -182,7 +192,7 @@
           }
 
           ui.update();
-          gameScene.render();
+          gameScene.render(dt);
         }
 
         window.addEventListener('resize', () => gameScene.onResize());
@@ -191,10 +201,12 @@
         });
         window.addEventListener('pagehide', () => {
           if (saveGame) saveGame();
+          assetManager.dispose();
         });
 
         ui.update();
         ui.hideLoading();
+        if (window.matchMedia('(max-width: 900px)').matches) { try { await screen.orientation?.lock?.('landscape'); } catch (_) {} }
         ui.showMessage('Chào mừng trở lại Nông Trại 3D! 🌾');
         animate(performance.now());
       } catch (error) {
@@ -202,6 +214,12 @@
       }
     }
 
+    const rotateNotice = document.createElement('div');
+    rotateNotice.id = 'rotate-notice';
+    rotateNotice.innerHTML = '<div class="rotate-card"><div class="rotate-icon">📱 ↻</div><strong>Hãy xoay điện thoại ngang</strong><span>Farmnhamnhi được tối ưu cho màn hình ngang.</span></div>';
+    document.body.appendChild(rotateNotice);
+    function updateRotateNotice() { rotateNotice.classList.toggle('visible', window.innerWidth < window.innerHeight && window.innerWidth <= 900); }
+    window.addEventListener('resize', updateRotateNotice); window.addEventListener('orientationchange', updateRotateNotice); updateRotateNotice();
     startGame();
   </script>
 </body>
