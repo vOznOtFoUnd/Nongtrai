@@ -84,19 +84,10 @@
     }
 
     function clearCache() {
-        cache.forEach(function (model) {
-            if (!model || typeof model.traverse !== 'function') return;
-            model.traverse(function (node) {
-                if (!node || !node.isMesh) return;
-                if (node.geometry && typeof node.geometry.dispose === 'function') node.geometry.dispose();
-                const materials = Array.isArray(node.material) ? node.material : [node.material];
-                materials.forEach(function (material) {
-                    if (material && typeof material.dispose === 'function') material.dispose();
-                });
-            });
-        });
+        // Loaded instances may share geometry/material with cache templates.
+        // Evict references without disposing GPU resources still in active use.
         cache.clear();
-        pending.clear();
+        // Do not clear in-flight promises: pending loads still resolve safely.
     }
 
     function selfTest() {
