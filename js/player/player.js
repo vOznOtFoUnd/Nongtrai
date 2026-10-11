@@ -89,12 +89,15 @@ export class PlayerCharacter {
       const update = e => {
         const rect = ring.getBoundingClientRect();
         const cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2;
-        const max = rect.width * 0.32;
+        const max = Math.max(1, rect.width * 0.32);
         let dx = e.clientX - cx, dy = e.clientY - cy;
         const len = Math.hypot(dx, dy);
         if (len > max) { dx = dx / len * max; dy = dy / len * max; }
-        this.joystick.x = THREE.MathUtils.clamp(dx / max, -1, 1);
-        this.joystick.y = THREE.MathUtils.clamp(dy / max, -1, 1);
+        // Deadzone nhỏ tránh nhân vật rung khi ngón tay gần tâm joystick.
+        const rawX = dx / max, rawY = dy / max;
+        const deadzone = 0.08;
+        this.joystick.x = Math.abs(rawX) < deadzone ? 0 : THREE.MathUtils.clamp(rawX, -1, 1);
+        this.joystick.y = Math.abs(rawY) < deadzone ? 0 : THREE.MathUtils.clamp(rawY, -1, 1);
         knob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
       };
       pad.addEventListener('pointerdown', e => {
@@ -170,10 +173,24 @@ export class PlayerCharacter {
     let x=(this.keys.has('d')||this.keys.has('arrowright')?1:0)-(this.keys.has('a')||this.keys.has('arrowleft')?1:0) + this.joystick.x;
     let z=(this.keys.has('s')||this.keys.has('arrowdown')?1:0)-(this.keys.has('w')||this.keys.has('arrowup')?1:0) + this.joystick.y;
     x = THREE.MathUtils.clamp(x, -1, 1); z = THREE.MathUtils.clamp(z, -1, 1);
-    if(task?.phase==='approach') { const dx=task.target.x-this.root.position.x,dz=task.target.z-this.root.position.z,dist=Math.hypot(dx,dz); if(dist>.12){x=dx/dist;z=dz/dist;} else {x=0;z=0;task.phase='act';this.actionClock=0;this.root.rotation.y=Math.atan2(task.plot.x-this.root.position.x,task.plot.z-this.root.position.z);this._showTool(task.action);} }
+    let moveInWorldSpace = false;
+    if(task?.phase==='approach') {
+      const dx=task.target.x-this.root.position.x,dz=task.target.z-this.root.position.z,dist=Math.hypot(dx,dz);
+      if(dist>.12){x=dx/dist;z=dz/dist;moveInWorldSpace=true;}
+      else {x=0;z=0;task.phase='act';this.actionClock=0;this.root.rotation.y=Math.atan2(task.plot.x-this.root.position.x,task.plot.z-this.root.position.z);this._showTool(task.action);}
+    }
     const moving=x!==0||z!==0;
     if (moving) {
-      this.moveVector.set(x,0,z).normalize();
+      // Hướng điều khiển của người chơi lấy theo góc ngang camera; tiến lên đi về phía camera nhìn.
+      // Pha tự đi tới ô đất dùng vector thế giới trực tiếp, không chuyển đổi lần thứ hai theo camera.
+      if (!moveInWorldSpace && this.controls?.target && this.controls?.object) {
+        const forward = new THREE.Vector3().subVectors(this.controls.target, this.controls.object.position);
+        forward.y = 0;
+        if (forward.lengthSq() > 0.0001) forward.normalize(); else forward.set(0, 0, -1);
+        const right = new THREE.Vector3(-forward.z, 0, forward.x);
+        this.moveVector.copy(right).multiplyScalar(x).addScaledVector(forward, -z);
+      } else this.moveVector.set(x, 0, z);
+      if (this.moveVector.lengthSq() > 1) this.moveVector.normalize();
       this.velocity.x=THREE.MathUtils.damp(this.velocity.x,this.moveVector.x*this.speed,this.acceleration,dt);
       this.velocity.z=THREE.MathUtils.damp(this.velocity.z,this.moveVector.z*this.speed,this.acceleration,dt);
       const v=Math.hypot(this.velocity.x,this.velocity.z);
@@ -193,5 +210,10 @@ export class PlayerCharacter {
     if(task?.phase==='act') { this.actionClock+=dt; const wave=Math.sin(this.actionClock*13); if(task.action==='hoe'){this.arms[1].rotation.x=-.85+Math.max(0,wave)*.5;this.arms[1].rotation.z=-.55;} else if(task.action==='water'){this.arms[1].rotation.x=-.65;this.arms[1].rotation.z=-.25;} else if(task.action==='plant'){this.arms[1].rotation.x=-.9+Math.max(0,wave)*.2;} else if(task.action==='harvest'){this.arms[1].rotation.x=-.7+wave*.22;} if(this.actionClock>=this.actionDuration){this.actionTask=null;this._showTool(null);this.arms.forEach(a=>{a.rotation.x=0;a.rotation.z=0;});task.execute?.();} }
     else if(!task) this._showTool(null);
     this.root.position.y=actualMoving?Math.abs(Math.sin(t*10))*0.035:0;
-    if(this.controls){this.controls.target.x+=(this.root.position.x-this.controls.target.x)*Math.min(1,dt*2.5);this.controls.target.z+=(this.root.position.z-this.controls.target.z)*Math.min(1,dt*2.5);}
+    if(this.controls){
+      const follow = Math.min(1, dt * 4.5);
+      this.controls.target.x += (this.root.position.x - this.controls.target.x) * follow;
+      this.controls.target.y += ((this.root.position.y + 1.12) - this.controls.target.y) * follow;
+      this.controls.target.z += (this.root.position.z - this.controls.target.z) * follow;
+    }
   }}

@@ -8,7 +8,19 @@ export class Input {
     this.raycaster = new THREE.Raycaster(); 
     this.mouse = new THREE.Vector2();
     this.player = player;
-    domElement.addEventListener('pointerdown', e => this._onDown(e));
+    this.domElement = domElement;
+    this._pointerStart = null;
+    // Chỉ tương tác ô đất khi đây là cú chạm/click ngắn; vuốt để xoay camera không kích hoạt ruộng.
+    domElement.addEventListener('pointerdown', e => {
+      if (e.target.closest('#ui') || e.target.closest('#mobile-joystick')) return;
+      this._pointerStart = { id: e.pointerId, x: e.clientX, y: e.clientY, target: e.target };
+    });
+    domElement.addEventListener('pointerup', e => {
+      const start = this._pointerStart; this._pointerStart = null;
+      if (!start || start.id !== e.pointerId || Math.hypot(e.clientX - start.x, e.clientY - start.y) > 10) return;
+      this._onDown(e);
+    });
+    domElement.addEventListener('pointercancel', () => { this._pointerStart = null; });
   }
 
   _onDown(e) {
