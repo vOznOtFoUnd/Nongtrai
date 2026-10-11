@@ -1,4 +1,36 @@
 let weatherParticleSystem = null;
+let weatherParticleBuffers = null;
+const WEATHER_PARTICLE_COUNT = 250;
+function ensureWeatherParticleSystem(type) {
+    if (!weatherParticleBuffers) {
+        const geometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(WEATHER_PARTICLE_COUNT * 3);
+        for (let i = 0; i < WEATHER_PARTICLE_COUNT; i++) {
+            positions[i * 3] = (Math.random() - 0.5) * 80;
+            positions[i * 3 + 1] = Math.random() * 40;
+            positions[i * 3 + 2] = (Math.random() - 0.5) * 80;
+        }
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        const material = new THREE.PointsMaterial({ color: 0x38bdf8, size: 0.25, transparent: true, opacity: 0.75 });
+        const points = new THREE.Points(geometry, material);
+        points.frustumCulled = false;
+        weatherParticleBuffers = { geometry, material, points };
+    }
+    const { material, points, geometry } = weatherParticleBuffers;
+    material.color.setHex(type === 'rainy' ? 0x38bdf8 : 0xffffff);
+    material.size = type === 'rainy' ? 0.25 : 0.4;
+    material.opacity = type === 'rainy' ? 0.75 : 0.9;
+    points.userData.type = type;
+    weatherParticleSystem = points;
+    if (!points.parent) scene.add(points);
+    const positions = geometry.attributes.position.array;
+    for (let i = 0; i < positions.length; i += 3) {
+        positions[i] = (Math.random() - 0.5) * 80;
+        positions[i + 1] = Math.random() * 40;
+        positions[i + 2] = (Math.random() - 0.5) * 80;
+    }
+    geometry.attributes.position.needsUpdate = true;
+}
 
 // Thay đổi thời tiết trong game
 function setGameWeather(weatherType) {
@@ -11,8 +43,6 @@ function setGameWeather(weatherType) {
 function applyWeatherEffects(type) {
     if (weatherParticleSystem) {
         scene.remove(weatherParticleSystem);
-        weatherParticleSystem.geometry.dispose();
-        weatherParticleSystem.material.dispose();
         weatherParticleSystem = null;
     }
 
@@ -32,37 +62,13 @@ function applyWeatherEffects(type) {
         if (sunLight) sunLight.intensity = 0.5;
         if (ambientLight) ambientLight.intensity = 0.5;
 
-        const count = 250;
-        const geometry = new THREE.BufferGeometry();
-        const positions = new Float32Array(count * 3);
-        for (let i = 0; i < count * 3; i += 3) {
-            positions[i] = (Math.random() - 0.5) * 80;
-            positions[i + 1] = Math.random() * 40;
-            positions[i + 2] = (Math.random() - 0.5) * 80;
-        }
-        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-        const material = new THREE.PointsMaterial({ color: 0x38bdf8, size: 0.25, transparent: true, opacity: 0.75 });
-        weatherParticleSystem = new THREE.Points(geometry, material);
-        weatherParticleSystem.userData = { type: 'rainy' };
-        scene.add(weatherParticleSystem);
+        ensureWeatherParticleSystem('rainy');
     } else if (type === 'snowy') {
         scene.background.setHex(0xe2e8f0);
         scene.fog.color.setHex(0xe2e8f0);
         if (sunLight) sunLight.intensity = 0.9;
         if (ambientLight) ambientLight.intensity = 0.8;
 
-        const count = 250;
-        const geometry = new THREE.BufferGeometry();
-        const positions = new Float32Array(count * 3);
-        for (let i = 0; i < count * 3; i += 3) {
-            positions[i] = (Math.random() - 0.5) * 80;
-            positions[i + 1] = Math.random() * 40;
-            positions[i + 2] = (Math.random() - 0.5) * 80;
-        }
-        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-        const material = new THREE.PointsMaterial({ color: 0xffffff, size: 0.4, transparent: true, opacity: 0.9 });
-        weatherParticleSystem = new THREE.Points(geometry, material);
-        weatherParticleSystem.userData = { type: 'snowy' };
-        scene.add(weatherParticleSystem);
+        ensureWeatherParticleSystem('snowy');
     }
 }

@@ -11,12 +11,20 @@ function init3DScene() {
     camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.set(0, 28, 35);
 
-    renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "default" });
+    // FIX 69: mobile-first rendering profile, guided by FIX 68 field logs.
+    // High DPR is intentionally capped at 1 below; disabling MSAA on touch devices
+    // reduces GPU bandwidth while keeping desktop antialiasing unchanged.
+    const isMobileRender = !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches)
+        || Math.min(window.innerWidth, window.innerHeight) <= 600;
+    renderer = new THREE.WebGLRenderer({
+        antialias: !isMobileRender,
+        powerPreference: "high-performance"
+    });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(1);
 
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.shadowMap.type = isMobileRender ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
     container.appendChild(renderer.domElement);
 
     controls = new THREE.OrbitControls(camera, renderer.domElement);
@@ -34,12 +42,12 @@ function init3DScene() {
     sunLight.position.set(30, 50, 25);
     sunLight.castShadow = true;
     
-    const shadowSize = (window.matchMedia && window.matchMedia("(pointer: coarse)").matches) ? 256 : 512;
+    const shadowSize = isMobileRender ? 128 : 512;
     sunLight.shadow.mapSize.width = shadowSize;
     sunLight.shadow.mapSize.height = shadowSize;
     sunLight.shadow.camera.near = 0.5;
-    sunLight.shadow.camera.far = 150;
-    const d = 45;
+    sunLight.shadow.camera.far = isMobileRender ? 100 : 150;
+    const d = isMobileRender ? 36 : 45;
     sunLight.shadow.camera.left = -d;
     sunLight.shadow.camera.right = d;
     sunLight.shadow.camera.top = d;

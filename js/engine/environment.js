@@ -134,7 +134,7 @@ function buildChibiGroundDetails() {
         [27, -27, 0.9], [10, -29, 0.85], [-5, -29, 1.0], [-27, -29, 0.95],
         [-31, -2, 0.9], [30, 2, 0.85], [-22, 17, 0.8], [22, 15, 0.9]
     ];
-    grassSpots.forEach(([x, z, s], i) => createChibiGrassClump(x, z, s, i % 3 === 0));
+    // FIX74: no decorative grass.
 
     // A few small clusters create a hand-placed, non-uniform silhouette around the island.
     const pebbleSpots = [
@@ -142,14 +142,14 @@ function buildChibiGroundDetails() {
         [31, 21, 0.85], [31, -20, 1.0], [18, -31, 0.9], [-17, -31, 1.0],
         [-32, 8, 0.8], [32, 7, 0.8], [25, 31, 0.7], [-25, 31, 0.75]
     ];
-    pebbleSpots.forEach(([x, z, s]) => createChibiPebbleCluster(x, z, s));
+    // FIX74: no decorative rocks.
 
     // Taller grass at selected island edges gives the flat ground a softer chibi silhouette.
     [
         [-33.0, -14, 0.0, 0.9], [-33.0, 12, 0.1, 0.85], [33.0, -13, Math.PI, 0.9],
         [33.0, 12, Math.PI, 0.85], [-14, 33.0, Math.PI / 2, 0.8], [13, 33.0, Math.PI / 2, 0.9],
         [-14, -33.0, -Math.PI / 2, 0.85], [13, -33.0, -Math.PI / 2, 0.8]
-    ].forEach(([x, z, r, s]) => createGroundEdgeTuft(x, z, r, s));
+    ]; // FIX74: no edge grass.
 }
 
 function buildEnvironmentDecorations() {
@@ -247,7 +247,7 @@ function buildEnvironmentDecorations() {
     // 4. Cỏ dại & Đá
     const grassMat = new THREE.MeshStandardMaterial({ color: 0x4ade80, roughness: 0.8 });
     farmGrassPatches = [];
-    for (let g = 0; g < 48; g++) {
+    for (let g = 0; g < 0; g++) {
         const rx = (Math.random() - 0.5) * 50;
         const rz = (Math.random() - 0.5) * 50;
         if (isLocationFree(rx, rz)) {
@@ -265,7 +265,7 @@ function buildEnvironmentDecorations() {
     }
 
     const rockMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.9 });
-    for (let r = 0; r < 24; r++) {
+    for (let r = 0; r < 0; r++) {
         const rx = (Math.random() - 0.5) * 50;
         const rz = (Math.random() - 0.5) * 50;
         if (isLocationFree(rx, rz)) {
@@ -414,28 +414,41 @@ function createChibiPineTree(x, z, scale = 1) {
     }
     const tip = new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 6), new THREE.MeshStandardMaterial({ color: 0x91c788, roughness: 0.8 }));
     tip.position.set(-0.12, 2.55, 0.02); tree.add(tip);
-    tree.userData.decorative = true; makeNonBlockingDecoration(tree); scene.add(tree); return tree;
+    tree.userData.decorative = true; makeNonBlockingDecoration(tree); scene.add(tree); if (typeof registerGameAssetTarget === 'function') registerGameAssetTarget(tree, 'pine'); return tree;
+}
+// Geometry/material dùng chung giữa chim; mỗi con vẫn là Group riêng để bay/vỗ cánh độc lập.
+const chibiBirdSharedGeometry = {
+    body: new THREE.SphereGeometry(0.23, 10, 8), belly: new THREE.SphereGeometry(0.17, 8, 6),
+    head: new THREE.SphereGeometry(0.17, 10, 8), eye: new THREE.SphereGeometry(0.026, 6, 5),
+    beak: new THREE.ConeGeometry(0.055, 0.13, 5), wing: new THREE.SphereGeometry(0.13, 7, 5),
+    tail: new THREE.ConeGeometry(0.11, 0.25, 5), foot: new THREE.CylinderGeometry(0.018, 0.018, 0.12, 5)
+};
+const chibiBirdMaterialCache = new Map();
+function getChibiBirdMaterial(color, roughness) {
+    const key = `${color}:${roughness}`;
+    if (!chibiBirdMaterialCache.has(key)) chibiBirdMaterialCache.set(key, new THREE.MeshStandardMaterial({ color, roughness }));
+    return chibiBirdMaterialCache.get(key);
 }
 function createChibiBird(color, bellyColor, start, landing, phase = 0) {
     const bird = new THREE.Group();
-    const feather = new THREE.MeshStandardMaterial({ color, roughness: 0.85 });
-    const bellyMat = new THREE.MeshStandardMaterial({ color: bellyColor, roughness: 0.9 });
-    const darkMat = new THREE.MeshStandardMaterial({ color: 0x292524, roughness: 0.8 });
-    const beakMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.7 });
-    const body = new THREE.Mesh(new THREE.SphereGeometry(0.23, 12, 10), feather); body.scale.set(1.25, 0.82, 0.9); bird.add(body);
-    const belly = new THREE.Mesh(new THREE.SphereGeometry(0.17, 10, 8), bellyMat); belly.position.set(0.015, -0.075, 0.12); belly.scale.set(1, 0.82, 0.55); bird.add(belly);
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.17, 12, 10), feather); head.position.set(0.19, 0.13, 0.08); bird.add(head);
-    const eyeGeo = new THREE.SphereGeometry(0.026, 8, 6);
+    const feather = getChibiBirdMaterial(color, 0.85);
+    const bellyMat = getChibiBirdMaterial(bellyColor, 0.9);
+    const darkMat = getChibiBirdMaterial(0x292524, 0.8);
+    const beakMat = getChibiBirdMaterial(0xf59e0b, 0.7);
+    const body = new THREE.Mesh(chibiBirdSharedGeometry.body, feather); body.scale.set(1.25, 0.82, 0.9); bird.add(body);
+    const belly = new THREE.Mesh(chibiBirdSharedGeometry.belly, bellyMat); belly.position.set(0.015, -0.075, 0.12); belly.scale.set(1, 0.82, 0.55); bird.add(belly);
+    const head = new THREE.Mesh(chibiBirdSharedGeometry.head, feather); head.position.set(0.19, 0.13, 0.08); bird.add(head);
+    const eyeGeo = chibiBirdSharedGeometry.eye;
     [-1, 1].forEach(side => { const eye = new THREE.Mesh(eyeGeo, darkMat); eye.position.set(0.245, 0.155, 0.08 + side * 0.105); bird.add(eye); });
-    const beak = new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.13, 5), beakMat); beak.rotation.z = -Math.PI / 2; beak.position.set(0.35, 0.105, 0.08); bird.add(beak);
-    const wingL = new THREE.Mesh(new THREE.SphereGeometry(0.13, 8, 6), bellyMat); wingL.scale.set(0.55, 0.22, 0.8); wingL.position.set(-0.02, 0.02, -0.13); bird.add(wingL);
+    const beak = new THREE.Mesh(chibiBirdSharedGeometry.beak, beakMat); beak.rotation.z = -Math.PI / 2; beak.position.set(0.35, 0.105, 0.08); bird.add(beak);
+    const wingL = new THREE.Mesh(chibiBirdSharedGeometry.wing, bellyMat); wingL.scale.set(0.55, 0.22, 0.8); wingL.position.set(-0.02, 0.02, -0.13); bird.add(wingL);
     const wingR = wingL.clone(); wingR.position.z = 0.13; bird.add(wingR);
-    const tail = new THREE.Mesh(new THREE.ConeGeometry(0.11, 0.25, 5), feather); tail.rotation.z = Math.PI / 2; tail.position.set(-0.27, 0.03, 0); bird.add(tail);
+    const tail = new THREE.Mesh(chibiBirdSharedGeometry.tail, feather); tail.rotation.z = Math.PI / 2; tail.position.set(-0.27, 0.03, 0); bird.add(tail);
     const feet = [];
-    for (const z of [-0.07, 0.07]) { const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.12, 5), beakMat); foot.position.set(0, -0.22, z); bird.add(foot); feet.push(foot); }
+    for (const z of [-0.07, 0.07]) { const foot = new THREE.Mesh(chibiBirdSharedGeometry.foot, beakMat); foot.position.set(0, -0.22, z); bird.add(foot); feet.push(foot); }
     bird.position.set(start.x, start.y, start.z);
     bird.userData = { phase, wingL, wingR, feet, head, state: 'perched', activity: 'rest', stateUntil: 0, flightStart: null, flightEnd: null, flightControl: null, flightDuration: 4.4 + phase * 0.45, previousX: start.x, previousZ: start.z, startledUntil: 0, home: landing, perchY: start.y };
-    makeNonBlockingDecoration(bird); scene.add(bird); return bird;
+    makeNonBlockingDecoration(bird); scene.add(bird); if (typeof registerGameAssetTarget === 'function') registerGameAssetTarget(bird, 'bird'); return bird;
 }
 function buildChibiNatureDecorations() {
     const treeSpots = [
@@ -592,6 +605,7 @@ function buildMinigameMats() {
     // Đua ngựa chuyển sang giao diện giải trí cố định trên màn hình; không dựng đường đua 3D lỗi nữa.
     worldRaceHorses=[];
     // Đường đi phân khu: ruộng ở trung tâm, mỗi khu có lối vào riêng.
+    /* FIX74 removed road network entirely.
     // Texture đất vẽ bằng Canvas để không cần tải ảnh ngoài: đất nâu ấm, hạt sỏi nhỏ.
     const dirtCanvas = document.createElement('canvas'); dirtCanvas.width = 256; dirtCanvas.height = 256;
     const dirtCtx = dirtCanvas.getContext('2d');
@@ -669,15 +683,16 @@ function buildMinigameMats() {
         [-18,-13.5,1.20],[-18,5.5,1.20],[-10.5,-20,1.15],[22.5,2,1.15]
     ].forEach(([x,z,r]) => addRoundPatch(x, z, r, roadShoulderMat, 0.016));
 
-    scene.add(roadVisual);
+    // FIX74: roads removed (do not add meshes to scene).
 
-    paths.forEach(({x,z,w,d})=>{
+    [].forEach(({x,z,w,d})=>{
         const path = new THREE.Mesh(new THREE.BoxGeometry(w, 0.045, d), pathMats);
         path.position.set(x, 0.040, z); path.receiveShadow = true; path.castShadow = false;
         // Keep the exact existing gameplay contract: path remains walkable and raycastable.
         path.userData = { type: 'path', walkable: true };
         scene.add(path);
     });
+    */
     // Bầu cua cũng mở từ nút Giải trí, không chiếm diện tích bản đồ.
 
     // UPGRADE 43: sạp bán hàng chibi mới, đặt giữa chuồng gà (-20,-18) và chuồng bò (-20,10).
@@ -734,7 +749,7 @@ function buildMinigameMats() {
     });
     market.userData = { type:'market_sign' };
     market.traverse(o => { if (o.isMesh && (!o.userData || !o.userData.type)) o.userData={type:'market_sign'}; o.raycast = o.raycast || undefined; });
-    scene.add(market);
+    scene.add(market); if (typeof registerGameAssetTarget === 'function') registerGameAssetTarget(market, 'market');
 
     // NPC bù nhìn cạnh ruộng: tương tác để mở chung bảng mở khóa/nâng cấp ô đất.
     const strawman = new THREE.Group(); strawman.position.set(-15.5, 0, -8.5);
@@ -750,9 +765,8 @@ function buildMinigameMats() {
     const legGeo = new THREE.CylinderGeometry(0.08, 0.1, 0.62, 6);
     [-0.18, 0.18].forEach(x => { const leg = new THREE.Mesh(legGeo, dark); leg.position.set(x, 0.32, 0); leg.userData.type = 'plot_upgrade_npc'; strawman.add(leg); });
     strawman.traverse(obj => { if (obj.isMesh) { obj.castShadow = true; obj.userData.type = 'plot_upgrade_npc'; } });
-    scene.add(strawman);
-    const npcSign = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeFarmSignTexture('BÙ NHÌN','MỞ / NÂNG CẤP ĐẤT','#854d0e'), transparent: true, depthTest: false }));
-    npcSign.position.set(-15.5, 3.05, -8.5); npcSign.scale.set(3.1, 1.15, 1); scene.add(npcSign);
+    scene.add(strawman); if (typeof registerGameAssetTarget === 'function') registerGameAssetTarget(strawman, 'scarecrow');
+    // FIX74: scarecrow overhead sign removed.
 }
 function updateMarketReadyIndicator() {
     const orders = Array.isArray(gameState.marketOrders) ? gameState.marketOrders : [];

@@ -136,7 +136,20 @@ function setCameraAngleLevel(level, immediate = false) {
         gameState.settings.topdownHeight = topdownCamera.heightLevel;
     }
     cameraNeedsUpdate = true;
-    if (getControlMode() === 'direct') applyCameraFollow(immediate, performance.now());
+    if (getControlMode() === 'direct') {
+        applyCameraFollow(true, performance.now());
+    } else if (controls && camera && controls.target) {
+        // Click-to-move uses OrbitControls: apply the selected pitch immediately
+        // while preserving camera distance and target.
+        const target = controls.target;
+        const offset = camera.position.clone().sub(target);
+        const radius = Math.max(0.1, offset.length());
+        const yaw = Math.atan2(offset.x, offset.z);
+        const pitch = THREE.MathUtils.degToRad(cameraMode === 'topdown' ? topdownCamera.tilt : thirdPersonCamera.pitch);
+        const horizontal = Math.cos(pitch) * radius;
+        camera.position.set(target.x + Math.sin(yaw) * horizontal, target.y + Math.sin(pitch) * radius, target.z + Math.cos(yaw) * horizontal);
+        controls.update();
+    }
     if (typeof updateCameraAngleUI === 'function') updateCameraAngleUI();
 }
 
@@ -190,7 +203,9 @@ function updateCameraModeUI() {
     const select = document.getElementById('setting-camera-mode');
     if (select) select.value = cameraMode;
     const angle = document.querySelector('.direct-camera-controls');
-    if (angle) angle.classList.remove('topdown-hidden');
+    // Camera angle controls are useful in both camera modes, but only while the
+    // direct-control HUD is enabled. Keep mode switching independent of visibility.
+    if (angle) angle.classList.toggle('topdown-hidden', false);
 }
 function applyCameraFollow(snap = false, now = performance.now()) {
     if (!playerGroup || !camera || getControlMode() !== 'direct') return;
@@ -273,7 +288,7 @@ function setNearbyInteraction(info) {
 function refreshInteractionTargetCache(now = performance.now()) {
     if (now < interactionCacheNextRefresh || !scene) return;
     interactionCacheNextRefresh = now + INTERACTION_CACHE_REFRESH_MS;
-    const allowed = new Set(['plot','orchard','plot_upgrade_npc','pond','minigame_horse','minigame_baucua','market_sign','stove']);
+    const allowed = new Set(['pond_fish_bridge','pond_duck_nest','plot','orchard','plot_upgrade_npc','pond','minigame_horse','minigame_baucua','market_sign','stove']);
     const next = [];
     scene.traverse(obj => {
         if (!obj || obj === playerGroup || !obj.userData || !obj.userData.type) return;
@@ -305,16 +320,19 @@ function findNearbyInteraction(force = false) {
     }
     if (!best) {
         if (nearbyInteraction) setNearbyInteraction(null);
+        if (typeof closeQuickPen === 'function') closeQuickPen();
         lastNearbyInteractionKey = '';
         return;
     }
     const o = best.obj, t = best.type;
     let name='Khu vực', action='Tương tác', icon='✋', fn=null;
-    if (t === 'plot') { const idx=o.userData.index; name=`Ô đất #${Number(idx)+1}`; action='Chăm sóc'; icon='🌱'; fn=()=>handlePlotClick(idx); }
+    if (t === 'plot') { const idx=o.userData.index; name=`Ô đất #${Number(idx)+1}`; const p=gameState.plots?.[idx];if(p?.cropId&&CROPS_DB[p.cropId]){const c=CROPS_DB[p.cropId],left=Math.max(0,Math.ceil((Number(c.growTime)||0)-(Number(p.reducedSecs)||0)-(Date.now()-(Number(p.plantedAt)||Date.now()))/1000));name=`${c.icon||'🌱'} ${c.name} · ${left?Math.ceil(left/60)+' phút':'Thu hoạch được'}`;} action='Chăm sóc'; icon='🌱'; fn=()=>handlePlotClick(idx); }
     else if (t === 'orchard') { const idx=o.userData.index; name=`Cây ăn quả #${Number(idx)+1}`; action='Chăm sóc'; icon='🍎'; fn=()=>handleOrchardClick(idx); }
-    else if (t.endsWith('_trigger')) { const map={chicken:['🐔','Chuồng Gà'],cow:['🐄','Chuồng Bò'],pig:['🐷','Chuồng Heo']}; const v=map[o.userData.penType]||['🐾','Chuồng vật nuôi']; icon=v[0]; name=v[1]; action='Mở chuồng'; fn=()=>openAnimalPenModal(o.userData.penType); }
+    else if (t.endsWith('_trigger')) { const map={chicken:['🐔','Chuồng Gà'],cow:['🐄','Chuồng Bò'],pig:['🐷','Chuồng Heo']}; const v=map[o.userData.penType]||['🐾','Chuồng vật nuôi']; icon=v[0]; name=v[1]+' · Cấp '+(Number(gameState.penLevels?.[o.userData.penType])||1); action='Mở chuồng'; fn=()=>openQuickPen(o.userData.penType); }
     else if (t === 'plot_upgrade_npc') { name='Khu nâng cấp đất'; action='Nâng cấp'; icon='🌟'; fn=()=>openPlotUpgradeModal(); }
-    else if (t === 'pond') { name='Ao Cá'; action='Câu cá'; icon='🐟'; fn=()=>openFishPondModal(); }
+    else if (t === 'pond_fish_bridge') { name='Cầu cá'; action='Chăm sóc cá'; icon='🐟'; fn=()=>openQuickPond('fish'); }
+    else if (t === 'pond_duck_nest') { name='Ổ trứng vịt'; action='Chăm sóc vịt'; icon='🦆'; fn=()=>openQuickPond('duck'); }
+    else if (t === 'pond') { name='Ao Cá'; action='Chăm sóc cá'; icon='🐟'; fn=()=>openQuickPond('fish'); }
     else if (t === 'minigame_horse') { name='Khu Đua Ngựa'; action='Đua ngựa'; icon='🐎'; fn=()=>openHorseRaceModal(); }
     else if (t === 'minigame_baucua') { name='Khu Bầu Cua'; action='Chơi bầu cua'; icon='🎲'; fn=()=>openBauCuaModal(); }
     else if (t === 'market_sign') { name='Chợ Nông Trại'; action='Mở chợ'; icon='🛒'; fn=()=>openModal('modal-market'); }
@@ -327,7 +345,7 @@ function findNearbyInteraction(force = false) {
 
 function triggerNearbyInteraction() {
     if (nearbyInteraction && typeof nearbyInteraction.fn === 'function') {
-        const action = nearbyInteraction.fn; setNearbyInteraction(null); action();
+        const action = nearbyInteraction.fn; action();
     }
 }
 
@@ -434,7 +452,9 @@ function setupDirectControlUI() {
     };
     touchZone.addEventListener('pointerup', end); touchZone.addEventListener('pointercancel', end); touchZone.addEventListener('lostpointercapture', end);
 
-    document.getElementById('interaction-bar')?.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); triggerNearbyInteraction(); });
+    document.getElementById('interaction-bar')?.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); triggerNearbyInteraction(); });
+    document.getElementById('camera-angle-up')?.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); setCameraAngleLevel(cameraAngleLevel + 1, true); });
+    document.getElementById('camera-angle-down')?.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); setCameraAngleLevel(cameraAngleLevel - 1, true); });
     window.addEventListener('blur', () => { if (joystickInput.active) { joystickInput.x = 0; joystickInput.y = 0; joystickInput.active = false; joystickInput.pointerId = null; updateJoystickVisual(0, 0); } });
     document.addEventListener('visibilitychange', () => { if (document.hidden && joystickInput.active) { joystickInput.x = 0; joystickInput.y = 0; joystickInput.active = false; joystickInput.pointerId = null; updateJoystickVisual(0, 0); } });
     setupCameraDrag();
@@ -459,8 +479,8 @@ function updateDirectPlayerMovement(delta = 1 / 60) {
     const dx = moveLen > 0 ? (moveX / moveLen) * speed * dt : 0;
     const dz = moveLen > 0 ? (moveZ / moveLen) * speed * dt : 0;
 
-    playerGroup.position.x += dx;
-    playerGroup.position.z += dz;
+    playerGroup.position.x = THREE.MathUtils.clamp(playerGroup.position.x + dx,-32.5,32.5);
+    playerGroup.position.z = THREE.MathUtils.clamp(playerGroup.position.z + dz,-32.5,32.5);
 
     const angle = Math.atan2(dx, dz);
     playerGroup.rotation.y = angle;
@@ -574,6 +594,7 @@ function setupTouchAndClickEvents() {
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
     setupDirectControlUI();
+    setupFarmZoom();
     if (gameState && gameState.settings) {
         cameraAngleLevel = Math.max(1, Math.min(5, Math.floor(Number(gameState.settings.cameraAngle) || 3)));
         cameraMode = gameState.settings.cameraMode === 'topdown' ? 'topdown' : 'thirdPerson';
@@ -606,8 +627,8 @@ function updatePlayerMovement(delta = 1 / 60) {
             playerGroup.rotation.y = angle;
 
             const step = moveSpeed * 60 * Math.min(0.05, Math.max(0, Number(delta) || 1 / 60));
-            currentPos.x += (dx / dist) * step;
-            currentPos.z += (dz / dist) * step;
+            currentPos.x = THREE.MathUtils.clamp(currentPos.x + (dx / dist) * step,-32.5,32.5);
+            currentPos.z = THREE.MathUtils.clamp(currentPos.z + (dz / dist) * step,-32.5,32.5);
 
             walkAnimTime += 10 * Math.min(0.05, Math.max(0, Number(delta) || 1 / 60));
             if (playerLeftLeg && playerRightLeg && playerLeftArm && playerRightArm) {
@@ -656,11 +677,46 @@ function updatePlayerMovement(delta = 1 / 60) {
 }
 
 // Xử Lý Điều Khiển Phím WASD / Mũi Tên
+function zoomFarmCamera(factor){if(!camera)return;const min=8,max=65;if(getControlMode()==='direct'){const active=getActiveCameraState();active.distance=THREE.MathUtils.clamp(active.distance*factor,min,max);cameraNeedsUpdate=true;applyCameraFollow(true);}else if(controls&&controls.target){const offset=camera.position.clone().sub(controls.target),next=THREE.MathUtils.clamp(offset.length()*factor,min,max);offset.setLength(next);camera.position.copy(controls.target).add(offset);controls.update();}}
+function setupFarmZoom(){
+    const canvas=document.querySelector('canvas');
+    if(!canvas||canvas.dataset.farmZoomReady)return;
+    canvas.dataset.farmZoomReady='1';
+    canvas.addEventListener('wheel',e=>{
+        if(document.querySelector('#modal-settings:not(.hidden),#modal-asset-studio:not(.hidden)'))return;
+        e.preventDefault();zoomFarmCamera(e.deltaY>0?1.1:.9);
+    },{passive:false});
+    // Only two fingers that BOTH started on the canvas can activate pinch.
+    // A finger on joystick or any other UI never counts as a zoom finger.
+    const canvasFingers=new Set();let last=0;
+    canvas.addEventListener('touchstart',e=>{
+        for(const t of e.changedTouches)canvasFingers.add(t.identifier);
+        if(e.touches.length===2 && canvasFingers.size===2 && !joystickInput.active){
+            last=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+        }else last=0;
+    },{passive:true});
+    canvas.addEventListener('touchmove',e=>{
+        if(e.touches.length!==2||canvasFingers.size!==2||joystickInput.active){last=0;return;}
+        if(!canvasFingers.has(e.touches[0].identifier)||!canvasFingers.has(e.touches[1].identifier)){last=0;return;}
+        const dist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+        if(last>0&&dist>0){e.preventDefault();zoomFarmCamera(THREE.MathUtils.clamp(last/dist,.85,1.15));}
+        last=dist;
+    },{passive:false});
+    const end=e=>{for(const t of e.changedTouches)canvasFingers.delete(t.identifier);if(canvasFingers.size<2)last=0;};
+    canvas.addEventListener('touchend',end);canvas.addEventListener('touchcancel',end);
+}
 function handleKeyDown(e) {
     if (!playerGroup) return;
     if (getControlMode() !== 'direct') return;
     const target = e.target;
-    if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
+    if (target && (['INPUT','TEXTAREA','SELECT'].includes(target.tagName) || target.isContentEditable)) return;
+    if(e.code==='KeyE'&&!e.repeat){
+        // Use the exact same clickable banner action as mobile; no second interaction path.
+        const banner=document.getElementById('interaction-bar');
+        if(!banner||banner.classList.contains('hidden'))return;
+        if(document.querySelector('#modal-settings:not(.hidden),#modal-asset-studio:not(.hidden),[id^="modal-"]:not(.hidden):not(#modal-settings):not(#modal-asset-studio)'))return;
+        e.preventDefault();banner.click();return;
+    }
     const key = e.key.toLowerCase();
     const map = { w: 'up', arrowup: 'up', s: 'down', arrowdown: 'down', a: 'left', arrowleft: 'left', d: 'right', arrowright: 'right' };
     const dir = map[key];
