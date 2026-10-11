@@ -399,3 +399,89 @@ body, html {
 .asset-actions button:disabled { opacity:.45; }
 .asset-actions #asset-reset { background:#7a806f; }
 @media (max-width:700px) { .asset-preview,.asset-preview canvas,.asset-preview-placeholder { min-height:210px; height:210px; } .asset-actions button { flex:1 1 140px; } }
+
+/* Economy v1.6: shop balance and disabled transaction states */
+.shop-balance { padding:10px 12px; margin-bottom:8px; border-radius:12px; background:#fbefc9; color:#76551b; font-weight:800; }
+.management-row button:disabled { background:#c5cbbd; color:#6f7869; cursor:not-allowed; opacity:.85; }
+
+/* v1.7: fish pond management uses the shared responsive management components. */
+#management-content [data-cast-fishing], #management-content [data-buy-fry], #management-content [data-feed-fish], #management-content [data-harvest-fish], #management-content [data-sell-fish] { white-space: nowrap; }
+
+/* NPC quest cards: tách từng nhiệm vụ rõ ràng trên PC và điện thoại. */
+.quest-card { margin: 12px 0; padding: 12px 10px; border: 1px solid #e7dfc8; border-radius: 14px; background: #fffaf0; }
+.quest-card h3 { margin: 4px 0 6px; }
+.quest-card p { margin: 7px 0; }
+.quest-card button { border: 0; border-radius: 10px; padding: 9px 12px; font-weight: 800; background: #73bd6c; color: #fff; }
+.quest-card button:disabled { background: #b7c0b2; color: #687365; cursor: not-allowed; }
+
+
+/* v1.9: hội thoại NPC và đơn giao hàng */
+.npc-dialogue { display:flex; align-items:flex-start; gap:12px; margin:8px 0 16px; padding:12px; border:1px solid #e5d7ad; border-radius:14px; background:linear-gradient(135deg,#fff7df,#fffdf5); }
+.npc-dialogue-avatar { flex:0 0 48px; display:grid; place-items:center; width:48px; height:48px; border-radius:50%; background:#e5f0d8; font-size:30px; }
+.npc-dialogue p { margin:5px 0 0; line-height:1.45; }
+.delivery-card { text-align:left; }
+.delivery-card .quest-emoji { font-size:30px; }
+.delivery-status { font-weight:800; color:#4e7e45; }
+
+
+/* v1.9.1 mobile HUD: keep the game world visible and provide fullscreen toggle. */
+#top-bar { align-items: flex-start; gap: 6px; }
+#stats { max-width: 100%; box-sizing: border-box; }
+#tools {
+  min-width: 0;
+  max-width: min(100%, 100vw - 16px);
+  box-sizing: border-box;
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 5px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+#tools > button { flex: 0 0 auto; }
+#crop-info {
+  left: 8px;
+  bottom: 8px;
+  right: auto;
+  width: max-content;
+  max-width: min(54vw, 560px);
+  box-sizing: border-box;
+  padding: 7px 9px;
+}
+#crop-info h4 { margin: 0 0 5px; font-size: 12px; }
+#seed-list {
+  display: flex;
+  flex-wrap: nowrap;
+  max-width: 100%;
+  overflow-x: auto;
+  gap: 5px;
+  padding: 1px 1px 4px;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.seed-btn { flex: 0 0 auto; min-height: 34px; padding: 6px 9px; font-size: 12px; }
+.fullscreen-btn { font-size: 21px; }
+#game-container:fullscreen { width: 100vw; height: 100dvh; background: #77d4e8; }
+#game-container:-webkit-full-screen { width: 100vw; height: 100vh; background: #77d4e8; }
+#game-container:fullscreen #ui, #game-container:-webkit-full-screen #ui { padding: max(6px, env(safe-area-inset-top)) max(6px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-left)); }
+
+@media (max-width: 900px) {
+  #ui { padding: max(5px, env(safe-area-inset-top)) max(5px, env(safe-area-inset-right)) max(5px, env(safe-area-inset-bottom)) max(5px, env(safe-area-inset-left)); }
+  #top-bar { gap: 4px; }
+  #stats { gap: 4px; padding: 4px 6px; }
+  .stat-item { min-height: 24px; padding: 3px 5px; font-size: 11px; }
+  #tools { width: 100%; max-width: 100%; padding: 4px; gap: 4px; }
+  .tool-btn, .utility-btn { min-width: 34px; min-height: 34px; padding: 5px 7px; font-size: 11px; border-radius: 8px; }
+  .utility-btn { font-size: 16px; }
+  #crop-info { max-width: min(64vw, 480px); bottom: max(6px, env(safe-area-inset-bottom)); left: max(6px, env(safe-area-inset-left)); }
+  #instructions { top: 90px; left: 6px; max-width: 150px; padding: 7px 9px; font-size: 10px; }
+}
+@media (orientation: landscape) and (max-height: 600px) {
+  #top-bar { max-width: 100%; }
+  #stats { flex: 0 0 auto; }
+  #tools { flex: 1 1 auto; width: auto; max-width: calc(100vw - 180px); }
+  #crop-info { max-width: 42vw; }
+  #mobile-joystick { transform: scale(.76); transform-origin: bottom left; }
+}
