@@ -3,7 +3,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { CONFIG, CROPS, getPlotUnlockRequirement } from '../core/config.js';
-import { state, spendMoney, addMoney, addExp, incrementHarvested, saveGame } from '../data/state.js';
+import { state, spendMoney, addExp, incrementHarvested, saveGame } from '../data/state.js';
 
 const gltfLoader = new GLTFLoader();
 const objLoader = new OBJLoader();
@@ -44,6 +44,7 @@ export class Plot {
     this.cropGroup = new THREE.Group();
     this.cropGroup.position.set(x, 0.25, z);
     parentGroup.add(this.cropGroup);
+    this.waterMarker = null;
   }
 
   unlockPlot() {
@@ -97,7 +98,8 @@ export class Plot {
     this.dryTimer = 0;
     
     this.updateCropVisual();
-    this.onMessage(`Đã trồng ${crop.name}! Hãy tưới nước nhanh lên 💧`);
+    this._setWaterMarker(true);
+    this.onMessage(`Đã gieo hạt ${crop.name} thành công! Cây con cần được tưới nước 💧`);
     saveGame();
     return true;
   }
@@ -107,9 +109,15 @@ export class Plot {
     if (this.state === 'planted' || this.state === 'withered') {
       this.watered = true;
       this.dryTimer = 0;
-      if (this.state === 'withered') this.state = 'planted';
+      this._setWaterMarker(false);
+      const recovering = this.state === 'withered';
+      if (recovering) {
+        this.state = 'planted';
+        // Cây héo đã bị ẩn khỏi scene; dựng lại hình ảnh khi được cứu bằng nước.
+        this.updateCropVisual();
+      }
       this.mesh.material = matWatered.clone();
-      this.onMessage('Đã tưới nước! Cây đang lớn 💧');
+      this.onMessage(recovering ? 'Cây đã hồi sức sau khi tưới nước! 💧🌱' : 'Đã tưới nước! Cây đang lớn 💧');
       saveGame();
       return true;
     }
@@ -124,15 +132,17 @@ export class Plot {
       return false;
     }
     const crop = CROPS[this.cropType];
-    addMoney(crop.sell); 
+    state.inventory.crops ??= { wheat: 0, carrot: 0, tomato: 0, pumpkin: 0 };
+    state.inventory.crops[this.cropType] = (state.inventory.crops[this.cropType] || 0) + 1;
     incrementHarvested();
     if (state.quests?.harvest) state.quests.harvest.progress += 1;
     const leveledUp = addExp(crop.exp);
     
-    this.onMessage(`+${crop.sell}$ và +${crop.exp} EXP từ ${crop.name}! 🎉`);
+    this.onMessage(`Đã thu hoạch ${crop.name}! +1 vào túi đồ. Bán tại cửa hàng để nhận ${crop.sell}$ 🧺`);
     if (leveledUp) this.onMessage(`🌟 CHÚC MỪNG BẠN LÊN LEVEL ${state.level}! 🌟`);
 
     this.resetToNormal();
+    this.onMessage(`Thu hoạch ${crop.name} thành công! +1 nông sản vào túi 🎉`);
     saveGame();
     return true;
   }
@@ -146,6 +156,7 @@ export class Plot {
     this.dryTimer = 0;
     this.mesh.material = matNormal.clone();
     this.clearCropVisual();
+    this._setWaterMarker(false);
   }
 
   update(dt) {
@@ -188,6 +199,8 @@ export class Plot {
       return;
     }
 
+    if (this.state === 'planted' && !this.watered && this.cropType) this._setWaterMarker(true);
+    else this._setWaterMarker(false);
     if (this.state === 'planted' && this.watered && this.cropType) {
       const crop = CROPS[this.cropType];
       if (crop) {
@@ -216,6 +229,22 @@ export class Plot {
         else c.material.dispose();
       }
     }
+  }
+
+  _setWaterMarker(show) {
+    if (!show) {
+      if (this.waterMarker) { this.cropGroup.remove(this.waterMarker); this.waterMarker.material?.map?.dispose?.(); this.waterMarker.material?.dispose?.(); this.waterMarker = null; }
+      return;
+    }
+    if (this.waterMarker) return;
+    const canvas = document.createElement('canvas'); canvas.width = 128; canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = 'rgba(255,255,255,0.94)'; ctx.beginPath(); ctx.arc(64,64,49,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#27bde8'; ctx.beginPath(); ctx.moveTo(64,20); ctx.bezierCurveTo(56,38,35,57,35,72); ctx.arc(64,72,29,Math.PI,0,true); ctx.bezierCurveTo(93,57,72,38,64,20); ctx.fill();
+    const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace;
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false }));
+    sprite.scale.set(0.48,0.48,1); sprite.position.set(0,1.25,0); sprite.renderOrder = 10;
+    this.cropGroup.add(sprite); this.waterMarker = sprite;
   }
 
   updateCropVisual() {
