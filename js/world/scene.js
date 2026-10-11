@@ -74,7 +74,7 @@ export class GameScene {
     const path = new THREE.Mesh(new THREE.PlaneGeometry(4, 20), new THREE.MeshStandardMaterial({ color: 0x8B6914, roughness: 0.9 }));
     path.rotation.x = -Math.PI / 2; path.position.set(0, 0.01, 20); path.receiveShadow = true; this.scene.add(path);
 
-    this._createFence(); this._createTrees(); this._createBarn(); this._createWindmill();
+    this._createFence(); this._createFarmFence(); this._createTrees(); this._createBarn(); this._createWindmill();
   }
 
   _createFence() {
@@ -89,8 +89,8 @@ export class GameScene {
       mesh.position.set(x,y,z); mesh.castShadow=true; mesh.receiveShadow=true; parent.add(mesh); return mesh;
     };
     const sides = [
-      {axis:'x', fixed:-16, start:-16, end:16}, {axis:'x', fixed:16, start:-16, end:16},
-      {axis:'z', fixed:-16, start:-16, end:16}, {axis:'z', fixed:16, start:-16, end:16}
+      {axis:'x', fixed:-26, start:-26, end:26}, {axis:'x', fixed:26, start:-26, end:26},
+      {axis:'z', fixed:-26, start:-26, end:26}, {axis:'z', fixed:26, start:-26, end:26}
     ];
     for (const side of sides) {
       const length = side.end-side.start;
@@ -120,15 +120,61 @@ export class GameScene {
     this.scene.add(fence);
     // Va chạm theo chu vi hàng rào liền mạch.
     this.staticCollisionBoxes.push(
-      {minX:-16.3,maxX:-15.7,minZ:-16.3,maxZ:16.3,kind:'fence'},
-      {minX:15.7,maxX:16.3,minZ:-16.3,maxZ:16.3,kind:'fence'},
-      {minX:-16.3,maxX:16.3,minZ:-16.3,maxZ:-15.7,kind:'fence'},
-      {minX:-16.3,maxX:16.3,minZ:15.7,maxZ:16.3,kind:'fence'}
+      {minX:-26.3,maxX:-25.7,minZ:-26.3,maxZ:26.3,kind:'fence'},
+      {minX:25.7,maxX:26.3,minZ:-26.3,maxZ:26.3,kind:'fence'},
+      {minX:-26.3,maxX:26.3,minZ:-26.3,maxZ:-25.7,kind:'fence'},
+      {minX:-26.3,maxX:26.3,minZ:25.7,maxZ:26.3,kind:'fence'}
+    );
+  }
+
+  _createFarmFence() {
+    // Hàng rào riêng cho ruộng trung tâm, chừa cổng ở bốn phía để nối đường đi.
+    const group = new THREE.Group();
+    const postMat = new THREE.MeshStandardMaterial({ color: 0x8a572d, roughness: 0.82 });
+    const railMat = new THREE.MeshStandardMaterial({ color: 0xa86b35, roughness: 0.86 });
+    const post = (x,z) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(0.22,1.0,0.22),postMat);
+      m.position.set(x,0.5,z); m.castShadow=true; group.add(m);
+    };
+    const horizontal = (x1,x2,z) => {
+      if (x2 <= x1) return;
+      const len=x2-x1;
+      const rail=new THREE.Mesh(new THREE.BoxGeometry(len,0.13,0.12),railMat);
+      rail.position.set((x1+x2)/2,0.48,z); rail.castShadow=true; group.add(rail);
+      const rail2=rail.clone(); rail2.position.y=0.78; group.add(rail2);
+      for(let x=x1;x<=x2+0.01;x+=2) post(x,z);
+      post(x2,z);
+    };
+    const vertical = (z1,z2,x) => {
+      if (z2 <= z1) return;
+      const len=z2-z1;
+      const rail=new THREE.Mesh(new THREE.BoxGeometry(0.12,0.13,len),railMat);
+      rail.position.set(x,0.48,(z1+z2)/2); rail.castShadow=true; group.add(rail);
+      const rail2=rail.clone(); rail2.position.y=0.78; group.add(rail2);
+      for(let z=z1;z<=z2+0.01;z+=2) post(x,z);
+      post(x,z2);
+    };
+    const edge=9.8, gate=1.15;
+    horizontal(-edge,-gate,-edge); horizontal(gate,edge,-edge);
+    horizontal(-edge,-gate,edge); horizontal(gate,edge,edge);
+    vertical(-edge,-gate,-edge); vertical(gate,edge,-edge);
+    vertical(-edge,-gate,edge); vertical(gate,edge,edge);
+    this.scene.add(group);
+    // Va chạm cùng các đoạn hàng rào; cổng để trống ở giữa mỗi cạnh.
+    this.staticCollisionBoxes.push(
+      {minX:-edge,maxX:-gate,minZ:-edge-0.14,maxZ:-edge+0.14,kind:'farm-fence'},
+      {minX:gate,maxX:edge,minZ:-edge-0.14,maxZ:-edge+0.14,kind:'farm-fence'},
+      {minX:-edge,maxX:-gate,minZ:edge-0.14,maxZ:edge+0.14,kind:'farm-fence'},
+      {minX:gate,maxX:edge,minZ:edge-0.14,maxZ:edge+0.14,kind:'farm-fence'},
+      {minX:-edge-0.14,maxX:-edge+0.14,minZ:-edge,maxZ:-gate,kind:'farm-fence'},
+      {minX:-edge-0.14,maxX:-edge+0.14,minZ:gate,maxZ:edge,kind:'farm-fence'},
+      {minX:edge-0.14,maxX:edge+0.14,minZ:-edge,maxZ:-gate,kind:'farm-fence'},
+      {minX:edge-0.14,maxX:edge+0.14,minZ:gate,maxZ:edge,kind:'farm-fence'}
     );
   }
 
   _createTrees() {
-    [[-20,-14],[-20,12],[20,-14],[20,12],[-14,-20],[12,-20],[-12,20],[14,20]].forEach(([x,z]) => {
+    [[-29,-24],[-29,24],[29,-24],[29,24],[-24,-29],[24,-29],[-24,29],[24,29]].forEach(([x,z]) => {
       const g = new THREE.Group();
       const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.3, 1.8, 8), new THREE.MeshStandardMaterial({ color: 0x5c4033 }));
       trunk.position.y = 0.9; trunk.castShadow = true; g.add(trunk);
@@ -190,9 +236,9 @@ export class GameScene {
       const rightTile = add(new THREE.BoxGeometry(3.18, 0.035, 0.035), roofEdgeMat, 1.32, 4.25, z, false); rightTile.rotation.z = -roofAngle;
     }
 
-    barn.position.set(-12,0,-12); this.scene.add(barn);
+    barn.position.set(WORLD_MAP.zones.storage.x,0,WORLD_MAP.zones.storage.z); this.scene.add(barn);
     // Vùng va chạm thân nhà, không bao gồm mái nhô ra và hiên trước.
-    this.staticCollisionBoxes.push({minX:-14.6,maxX:-9.4,minZ:-14.2,maxZ:-9.8,kind:'barn'});
+    this.staticCollisionBoxes.push({minX:WORLD_MAP.zones.storage.x-2.6,maxX:WORLD_MAP.zones.storage.x+2.6,minZ:WORLD_MAP.zones.storage.z-2.2,maxZ:WORLD_MAP.zones.storage.z+2.2,kind:'barn'});
   }
 
 
@@ -246,12 +292,12 @@ export class GameScene {
       edge.position.set(0.29,0.95,0.1); edge.castShadow=true; blade.add(edge);
     }
     // Cối đặt sát mép ruộng, tránh lối đi chính và nhà kho.
-    mill.position.set(10.8, 0, -9.5);
+    mill.position.set(WORLD_MAP.zones.windmill.x, 0, WORLD_MAP.zones.windmill.z);
     mill.rotation.y = -0.16;
     this.scene.add(mill);
     this.windmill = mill;
     // Vùng va chạm quanh thân cối; cánh quay nằm cao nên không cản người chơi.
-    this.staticCollisionBoxes.push({minX:9.75,maxX:11.85,minZ:-10.55,maxZ:-8.45,kind:'windmill'});
+    this.staticCollisionBoxes.push({minX:WORLD_MAP.zones.windmill.x-1.05,maxX:WORLD_MAP.zones.windmill.x+1.05,minZ:WORLD_MAP.zones.windmill.z-1.05,maxZ:WORLD_MAP.zones.windmill.z+1.05,kind:'windmill'});
   }
 
 
@@ -319,12 +365,47 @@ export class GameScene {
       { zone: 'windmill', text: 'CỐI XAY GIÓ', color: '#8a5732' },
       { zone: 'teleportGate', text: 'CỔNG DỊCH CHUYỂN', color: '#465f91' }
     );
+    const signOffsets = {
+      village: [-3.0, 2.8], shop: [0, 2.5], fishingLake: [-3.0, 0],
+      livestock: [-3.0, -1.8], lotusPond: [3.0, -1.0], storage: [0, 2.8],
+      forest: [3.0, 0], windmill: [-2.8, 1.0], teleportGate: [2.6, 1.8]
+    };
     labels.forEach(item => {
       const zone = WORLD_MAP.zones[item.zone];
-      const zOffset = item.zone === 'teleportGate' ? 1.25 : (item.zone === 'storage' ? 1.0 : 0);
-      this._createSign(zone.x, zone.z + zOffset, item.text, item.color);
+      const [dx, dz] = signOffsets[item.zone] || [0, 2.5];
+      this._createSign(zone.x + dx, zone.z + dz, item.text, item.color);
     });
     this._createWorldDecorations();
+    this._createQuestNpc();
+  }
+
+  _createQuestNpc() {
+    // NPC trang trí ở quảng trường; tương tác nhiệm vụ qua nút 📜 hiện có.
+    const npc = new THREE.Group();
+    const bodyMat = new THREE.MeshStandardMaterial({ color: 0x5f9dce, roughness: 0.9 });
+    const skinMat = new THREE.MeshStandardMaterial({ color: 0xf0c29a, roughness: 0.95 });
+    const hairMat = new THREE.MeshStandardMaterial({ color: 0x6b422c, roughness: 1 });
+    const scarfMat = new THREE.MeshStandardMaterial({ color: 0xd85a4a, roughness: 0.9 });
+    const bootMat = new THREE.MeshStandardMaterial({ color: 0x60412f, roughness: 0.9 });
+    const add = (geo, mat, x, y, z, parent=npc) => { const mesh = new THREE.Mesh(geo, mat); mesh.position.set(x,y,z); mesh.castShadow = true; mesh.receiveShadow = true; parent.add(mesh); return mesh; };
+    add(new THREE.CylinderGeometry(0.34, 0.42, 0.88, 10), bodyMat, 0, 1.05, 0);
+    add(new THREE.SphereGeometry(0.38, 12, 10), skinMat, 0, 1.78, 0);
+    add(new THREE.SphereGeometry(0.39, 12, 8), hairMat, 0, 1.98, -0.06).scale.set(1,0.56,0.96);
+    add(new THREE.BoxGeometry(0.48,0.12,0.42), scarfMat, 0, 1.42, 0.02);
+    for (const x of [-0.13,0.13]) add(new THREE.SphereGeometry(0.035,8,6), new THREE.MeshBasicMaterial({color:0x2a211b}), x,1.82,0.345);
+    add(new THREE.SphereGeometry(0.045,8,6), skinMat, 0,1.73,0.365);
+    for (const x of [-0.2,0.2]) add(new THREE.BoxGeometry(0.2,0.24,0.3), bootMat, x,0.18,0.03);
+    // Mũ nâu giúp nhận diện NPC từ góc camera thứ ba.
+    add(new THREE.CylinderGeometry(0.42,0.42,0.08,12), bootMat,0,2.16,0);
+    add(new THREE.ConeGeometry(0.27,0.26,10), bootMat,0,2.31,0);
+    const marker = new THREE.Group();
+    const markerMat = new THREE.MeshBasicMaterial({color:0xffdf70});
+    add(new THREE.SphereGeometry(0.14,10,8), markerMat,0,0,0,marker);
+    const exclamation = new THREE.Mesh(new THREE.BoxGeometry(0.045,0.12,0.045), new THREE.MeshBasicMaterial({color:0x6b4b20}));
+    exclamation.position.set(0,0.01,0.12); marker.add(exclamation);
+    marker.position.set(0,2.75,0);
+    npc.add(marker); npc.position.set(0,0,-12.1); npc.rotation.y = Math.PI;
+    this.scene.add(npc); this.questNpc = npc; this.questNpcMarker = marker;
   }
 
   _createWorldDecorations() {
@@ -564,7 +645,9 @@ export class GameScene {
   render(dt = 1/60) {
     if (this.windmillRotor) this.windmillRotor.rotation.z += 0.36 * Math.min(dt, 0.05);
     if (this.portalGlow) this.portalGlow.material.emissiveIntensity = 1.0 + 0.35 * Math.sin(performance.now() * 0.002);
-    this.controls.update(); this.renderer.render(this.scene, this.camera);
+    this.controls.update();
+    if (this.questNpcMarker) this.questNpcMarker.position.y = 2.75 + Math.sin(performance.now() * 0.003) * 0.08;
+    this.renderer.render(this.scene, this.camera);
   }
   get domElement() { return this.renderer.domElement; }
 }
