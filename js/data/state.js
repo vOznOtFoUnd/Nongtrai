@@ -11,8 +11,19 @@ export const state = {
   plots: [],
   time: 0,
   dayLength: CONFIG.world.dayLength,
-  inventory: { seeds: { wheat: 5, carrot: 0, tomato: 0, pumpkin: 0 } },
-  quests: { harvest: { target: 5, progress: 0, claimed: false } },
+  inventory: { seeds: { wheat: 5, carrot: 0, tomato: 0, pumpkin: 0 }, crops: { wheat: 0, carrot: 0, tomato: 0, pumpkin: 0 }, fish: 0 },
+  fishPond: { count: 0, growth: 0 },
+  quests: {
+    harvest: { target: 5, progress: 0, claimed: false },
+    sell: { target: 3, progress: 0, claimed: false },
+    fish: { target: 2, progress: 0, claimed: false }
+  },
+  // Đơn giao hàng được lưu riêng; save cũ tự nhận danh sách đơn mới.
+  deliveryOrders: [
+    { id: 'wheat_delivery', crop: 'wheat', quantity: 3, reward: 90, exp: 15, accepted: false, completed: false },
+    { id: 'carrot_delivery', crop: 'carrot', quantity: 2, reward: 120, exp: 18, accepted: false, completed: false },
+    { id: 'tomato_delivery', crop: 'tomato', quantity: 2, reward: 160, exp: 22, accepted: false, completed: false }
+  ],
 };
 
 export function spendMoney(amount) {
@@ -55,7 +66,9 @@ export function saveGame() {
       exp: state.exp,
       time: state.time,
       inventory: state.inventory,
+      fishPond: state.fishPond,
       quests: state.quests,
+      deliveryOrders: state.deliveryOrders,
       timestamp: Date.now(),
       plots: state.plots.map(p => ({
         ix: p.ix,
@@ -102,16 +115,36 @@ export function loadGame() {
     state.level = readNumber(data.level, CONFIG.start.level, 1);
     state.exp = readNumber(data.exp, CONFIG.start.exp);
     state.time = readNumber(data.time, 0);
-    if (data.inventory && data.inventory.seeds && typeof data.inventory.seeds === 'object') {
-      for (const id of ['wheat', 'carrot', 'tomato', 'pumpkin']) {
-        const amount = data.inventory.seeds[id];
-        state.inventory.seeds[id] = Number.isFinite(amount) && amount >= 0 ? Math.floor(amount) : 0;
+    const cropIds = ['wheat', 'carrot', 'tomato', 'pumpkin'];
+    if (data.inventory && typeof data.inventory === 'object') {
+      for (const id of cropIds) {
+        const seedAmount = data.inventory.seeds?.[id];
+        state.inventory.seeds[id] = Number.isFinite(seedAmount) && seedAmount >= 0 ? Math.floor(seedAmount) : 0;
+        const cropAmount = data.inventory.crops?.[id];
+        state.inventory.crops[id] = Number.isFinite(cropAmount) && cropAmount >= 0 ? Math.floor(cropAmount) : 0;
       }
     }
-    if (data.quests && data.quests.harvest) {
-      const q = data.quests.harvest;
-      state.quests.harvest.progress = Number.isFinite(q.progress) ? Math.max(0, q.progress) : 0;
-      state.quests.harvest.claimed = Boolean(q.claimed);
+    const fishCount = data.inventory?.fish;
+    state.inventory.fish = Number.isFinite(fishCount) && fishCount >= 0 ? Math.floor(fishCount) : 0;
+    const pond = data.fishPond;
+    state.fishPond.count = Number.isFinite(pond?.count) && pond.count >= 0 ? Math.min(5, Math.floor(pond.count)) : 0;
+    state.fishPond.growth = Number.isFinite(pond?.growth) && pond.growth >= 0 ? Math.min(100, Math.floor(pond.growth)) : 0;
+
+    // Khôi phục đơn giao hàng; các đơn chưa có trong save sẽ dùng trạng thái mặc định.
+    const savedOrders = Array.isArray(data.deliveryOrders) ? data.deliveryOrders : [];
+    for (const order of state.deliveryOrders) {
+      const saved = savedOrders.find(item => item && item.id === order.id);
+      order.accepted = Boolean(saved?.accepted || saved?.completed);
+      order.completed = Boolean(saved?.completed);
+    }
+
+    // Khôi phục tiến độ nhiệm vụ; save cũ tự nhận nhiệm vụ mới ở mức 0.
+    for (const id of ['harvest', 'sell', 'fish']) {
+      const saved = data.quests?.[id];
+      const quest = state.quests[id];
+      if (!saved || !quest) continue;
+      quest.progress = Number.isFinite(saved.progress) ? Math.max(0, Math.min(quest.target, Math.floor(saved.progress))) : 0;
+      quest.claimed = Boolean(saved.claimed);
     }
 
     const timestamp = Number.isFinite(data.timestamp) ? data.timestamp : Date.now();
