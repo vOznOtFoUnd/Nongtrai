@@ -49,3 +49,46 @@ Bản đồ hiện tại là **bước nền tảng**: một số khu như cổn
 - Thêm nhánh đường tới cửa hàng, rừng, nhà kho, cổng dịch chuyển, hồ câu cá, ao sen, khu chăn nuôi và cối xay gió.
 - Cửa chuồng chăn nuôi chuyển sang cạnh phía tây, hướng về lối tiếp cận; vùng va chạm được chia theo các đoạn hàng rào để chừa cửa thật sự đi qua được.
 - Bố cục được khai báo tại `js/world/mapData.js`; chỉnh `paths` để đổi đường mà không phải sửa logic gameplay.
+
+
+## World Map v1.2 — hoàn thiện trang trí môi trường
+- Bổ sung cụm hoa và đá trang trí ở mép khu vực; tọa độ nằm trong `WORLD_MAP.decorations` tại `js/world/mapData.js`.
+- Bổ sung biển chỉ dẫn cho nhà kho, khu rừng, cối xay gió và cổng dịch chuyển.
+- Vật trang trí mới không tạo collider và được đặt ngoài các lối đi chính để hạn chế ảnh hưởng điều khiển.
+- Không thay đổi hệ thống lưu game, nhân vật, joystick, trồng trọt hoặc Asset Manager.
+
+
+## World Map v1.3
+- Bổ sung bụi cây nhiều lớp và các cụm cỏ thấp ở rìa bản đồ.
+- Thêm hai đèn lồng tại quảng trường làng để tăng điểm nhận diện khu trung tâm.
+- Tọa độ trang trí được khai báo trong `js/world/mapData.js`; các vật trang trí không thêm collider để không đổi cơ chế di chuyển.
+- Tiếp tục dùng hình học Three.js tạo trực tiếp, không thêm thư viện hoặc tài nguyên tải ngoài.
+
+
+## Farming Polish v1.5
+- Sửa trường hợp cây bị héo rồi được tưới cứu: trạng thái cây chuyển lại `planted` và hình ảnh cây được dựng lại thay vì để ô đất trống.
+- Giữ nguyên quy trình cuốc đất → trồng → tưới → chờ lớn → thu hoạch, dữ liệu save và các module khác.
+- Không thêm thư viện hoặc thay đổi cân bằng giá/thời gian phát triển cây.
+
+
+## Economy v1.6 — túi đồ, tiền xu và cửa hàng
+- Thu hoạch giờ đưa nông sản vào `state.inventory.crops`; người chơi bán từng loại hoặc bán toàn bộ tại cửa hàng để đổi tiền.
+- Cửa hàng tiếp tục bán gói 5 hạt giống; thao tác mua/bán cập nhật số dư, túi đồ và dữ liệu lưu game.
+- Túi đồ hiển thị số hạt, số nông sản và giá trị bán tham khảo; thanh chọn hạt giống hiển thị lượng hạt hiện có.
+- Mở rộng dữ liệu lưu game theo hướng tương thích ngược: save cũ chưa có `inventory.crops` sẽ khởi tạo kho nông sản rỗng, không xóa tiền, cấp độ, hạt giống hoặc ruộng đã lưu.
+- Thay đổi gameplay có chủ đích: thu hoạch không cộng tiền ngay; cần bán nông sản tại cửa hàng. Giá bán và EXP từng loại cây giữ nguyên.
+
+
+## v1.7 — Hồ cá và câu cá
+- Thêm màn hình Hồ cá & câu cá: mua cá giống, cho ăn, thu hoạch cá nuôi và câu cá ngẫu nhiên.
+- Cá trong túi được lưu cùng game và có thể bán ở Cửa hàng (45 xu/con); nút Bán tất cả bao gồm cả cá.
+- Save cũ tự khởi tạo dữ liệu hồ cá và số cá trong túi ở mức 0.
+- Chế độ offline tiếp tục được giữ; chưa triển khai multiplayer.
+
+
+## Bản sửa camera và di chuyển v1.7.1
+- Sửa vector phải theo hướng ngang camera để điều khiển trái/phải đúng chiều.
+- Camera theo mượt theo vị trí X/Z và điểm nhìn cao hơn mặt đất (Y + 1.12), giúp nhân vật luôn dễ quan sát.
+- Tắt pan của OrbitControls để tránh kéo lệch tâm bám; vẫn giữ xoay và zoom.
+- Pha tự đi tới ô đất dùng vector thế giới trực tiếp, tránh bị chuyển đổi hướng theo camera lần thứ hai.
+- Không triển khai multiplayer và không thay đổi các hệ thống gameplay không liên quan.
