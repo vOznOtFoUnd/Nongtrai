@@ -8,6 +8,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Three.js CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
     <!-- OrbitControls -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <!-- FontAwesome Icons -->
@@ -107,6 +109,54 @@
         </div>
     </div>
 
+    <!-- FIX 71: công cụ tinh chỉnh asset cây trồng, nằm ngay phía trên dock thao tác -->
+    <div id="crop-asset-tool" class="hidden fixed z-[60] left-2 right-2 bottom-[5.4rem] sm:left-auto sm:right-4 sm:w-80 rounded-2xl border border-emerald-300 bg-white/95 backdrop-blur shadow-2xl p-3 text-slate-800 interactive-ui" style="max-height:48vh;overflow:auto">
+      <div class="flex items-center justify-between gap-2 mb-2"><div class="font-black text-sm">🧰 Căn chỉnh cây 3D</div><button type="button" onclick="toggleCropAssetTool(false)" class="w-7 h-7 rounded-lg bg-slate-100 font-black">✕</button></div>
+      <label class="block text-[11px] font-bold mb-1" for="crop-asset-tool-select">Loại cây đang chỉnh</label>
+      <select id="crop-asset-tool-select" class="w-full rounded-xl border p-2 text-sm mb-2" onchange="selectCropAssetToolCrop(this.value)"></select>
+      <div id="crop-asset-tool-status" class="text-[11px] text-slate-500 mb-2">Chưa chọn model GLB cho cây này.</div>
+      <div class="grid grid-cols-2 gap-x-3 gap-y-2" id="crop-asset-tool-sliders">
+        <label class="text-[11px] font-bold">Thu phóng <span id="crop-asset-scale-label">1.00×</span><input id="crop-asset-scale" class="w-full" type="range" min="0.1" max="3" step="0.05" value="1" oninput="updateCropAssetTransform('scale',this.value)"></label>
+        <label class="text-[11px] font-bold">Cao/thấp <span id="crop-asset-y-label">0.00</span><input id="crop-asset-y" class="w-full" type="range" min="-1.5" max="1.5" step="0.05" value="0" oninput="updateCropAssetTransform('y',this.value)"></label>
+        <label class="text-[11px] font-bold">Lệch ngang X <span id="crop-asset-x-label">0.00</span><input id="crop-asset-x" class="w-full" type="range" min="-1.5" max="1.5" step="0.05" value="0" oninput="updateCropAssetTransform('x',this.value)"></label>
+        <label class="text-[11px] font-bold">Lệch sâu Z <span id="crop-asset-z-label">0.00</span><input id="crop-asset-z" class="w-full" type="range" min="-1.5" max="1.5" step="0.05" value="0" oninput="updateCropAssetTransform('z',this.value)"></label>
+      </div>
+      <div class="grid grid-cols-2 gap-2 mt-3"><button type="button" onclick="resetCropAssetTransform()" class="rounded-xl p-2 bg-slate-100 text-xs font-black">↺ Đặt lại</button><button type="button" onclick="openAssetStudio()" class="rounded-xl p-2 bg-emerald-600 text-white text-xs font-black">📂 Chọn model</button></div>
+      <p class="text-[10px] text-slate-500 mt-2">Thông số áp dụng cho mọi ô đang trồng loại cây đã chọn. Thử nghiệm chưa ghi vào file save.</p>
+    </div>
+    <button id="crop-asset-tool-toggle" type="button" onclick="toggleCropAssetTool()" class="interactive-ui fixed z-[59] right-3 bottom-[5.2rem] sm:right-4 rounded-full bg-emerald-600 text-white shadow-xl border-2 border-white px-3 py-2 text-xs font-black">🧰 Cây 3D</button>
+
+    <!-- FIX72: công cụ căn chỉnh các mô hình còn lại -->
+    <div id="game-asset-tool" class="hidden fixed z-[60] left-2 right-2 bottom-[5.4rem] sm:left-auto sm:right-4 sm:w-80 rounded-2xl border border-sky-300 bg-white/95 backdrop-blur shadow-2xl p-3 text-slate-800 interactive-ui" style="max-height:48vh;overflow:auto">
+      <div class="flex items-center justify-between gap-2 mb-2"><div class="font-black text-sm">🧰 Căn chỉnh mô hình 3D</div><button type="button" onclick="toggleGameAssetTool(false)" class="w-7 h-7 rounded-lg bg-slate-100 font-black">✕</button></div>
+      <label class="block text-[11px] font-bold mb-1" for="game-asset-select">Mô hình đang chỉnh</label><select id="game-asset-select" class="w-full rounded-xl border p-2 text-sm mb-2" onchange="selectGameAssetTool(this.value)"></select>
+      <div id="game-asset-status" class="text-[11px] text-slate-500 mb-2">Chưa tải model GLB.</div>
+      <div class="grid grid-cols-2 gap-x-3 gap-y-2">
+        <label class="text-[11px] font-bold">Thu phóng <span id="game-asset-scale-label">1.00×</span><input id="game-asset-scale" class="w-full" type="range" min="0.1" max="3" step="0.05" value="1" oninput="updateGameAssetTransform('scale',this.value)"></label>
+        <label class="text-[11px] font-bold">Cao/thấp <span id="game-asset-y-label">0.00</span><input id="game-asset-y" class="w-full" type="range" min="-3" max="3" step="0.05" value="0" oninput="updateGameAssetTransform('y',this.value)"></label>
+        <label class="text-[11px] font-bold">Lệch ngang X <span id="game-asset-x-label">0.00</span><input id="game-asset-x" class="w-full" type="range" min="-3" max="3" step="0.05" value="0" oninput="updateGameAssetTransform('x',this.value)"></label>
+        <label class="text-[11px] font-bold">Lệch sâu Z <span id="game-asset-z-label">0.00</span><input id="game-asset-z" class="w-full" type="range" min="-3" max="3" step="0.05" value="0" oninput="updateGameAssetTransform('z',this.value)"></label>
+      </div><button type="button" onclick="resetGameAssetTransform()" class="w-full rounded-xl p-2 bg-slate-100 text-xs font-black mt-3">↺ Đặt lại thông số</button>
+      <p class="text-[10px] text-slate-500 mt-2">Áp dụng lên các đối tượng đang dùng loại model đã chọn. Thử nghiệm chỉ giữ trong phiên hiện tại.</p>
+    </div>
+    <button id="game-asset-tool-toggle" type="button" onclick="toggleGameAssetTool()" class="interactive-ui fixed z-[59] right-3 bottom-[8.2rem] sm:right-4 rounded-full bg-sky-600 text-white shadow-xl border-2 border-white px-3 py-2 text-xs font-black">🧰 Mô hình 3D</button>
+
+
+    <!-- FIX73: độc lập với cài đặt, có vùng cuộn riêng -->
+    <div id="modal-asset-studio" class="hidden fixed inset-0 z-[90] bg-slate-950/70 p-2 sm:p-5 interactive-ui" role="dialog" aria-modal="true" aria-label="Asset Studio">
+      <div class="mx-auto w-full max-w-2xl h-full max-h-[95dvh] bg-slate-50 rounded-3xl shadow-2xl flex flex-col overflow-hidden text-slate-800">
+        <div class="shrink-0 flex items-center justify-between p-4 bg-gradient-to-r from-emerald-700 to-sky-700 text-white"><div><div class="font-black text-lg">🧰 Asset Studio</div><div class="text-[11px] opacity-90">GLB · Chuẩn hóa · Animation · Tinh chỉnh</div></div><button type="button" onclick="closeAssetStudio()" class="rounded-xl bg-white/20 px-3 py-2 font-bold">✕ Đóng</button></div>
+        <div class="flex-1 overflow-y-auto p-3 sm:p-5 space-y-4">
+          <div class="grid grid-cols-2 gap-2"><button onclick="assetStudioTab('crops')" id="studio-tab-crops" class="rounded-xl bg-emerald-600 text-white font-bold p-2">🌾 Cây trồng</button><button onclick="assetStudioTab('world')" id="studio-tab-world" class="rounded-xl bg-slate-200 font-bold p-2">🏡 Thế giới & nhân vật</button></div>
+          <div class="p-3 rounded-2xl bg-white border space-y-3"><div class="font-black text-sm">⚖️ Chuẩn hóa kích thước khi tải</div><label class="block text-xs font-bold">Chế độ <select id="studio-normalize-mode" onchange="assetStudioNormalizeChange()" class="w-full mt-1 border rounded-xl p-2"><option value="fit">Vừa khung (rộng × cao × sâu)</option><option value="height">Theo chiều cao</option><option value="none">Không tự chuẩn hóa</option></select></label><label class="block text-xs font-bold">Chiều cao mục tiêu <span id="studio-height-label">1.50</span><input id="studio-target-height" type="range" min="0.2" max="5" step="0.05" value="1.5" oninput="assetStudioNormalizeChange()" class="w-full"></label><div class="text-[11px] text-slate-500">Tự căn giữa trục X/Z và đặt đáy lên mặt đất. Mỗi nhóm có kích thước gợi ý riêng; thanh tinh chỉnh vẫn hoạt động.</div></div>
+          <section id="studio-crops" class="space-y-2"><div class="font-black">🌾 Chọn file GLB cho cây trồng</div><div class="rounded-xl border bg-white p-2 space-y-2"><div class="font-black text-xs">🎞️ Animation cây trồng</div><select id="studio-crop-animation-type" class="w-full border rounded-xl p-2 text-xs" onchange="refreshCropStatusClips(this.value)"></select><label class="block text-xs">Bình thường<select id="studio-crop-normal" class="w-full border rounded-xl p-2" onchange="setCropStatusClip('normal',this.value)"></select></label><label class="block text-xs">Sẵn sàng thu hoạch / cảnh báo<select id="studio-crop-attention" class="w-full border rounded-xl p-2" onchange="setCropStatusClip('attention',this.value)"></select></label></div><div id="crop-asset-upload-list" class="grid grid-cols-1 sm:grid-cols-2 gap-2"></div></section>
+          <section id="studio-world" class="hidden space-y-2"><div class="font-black">🏡 Động vật, cây ăn quả, nhân vật, ô đất & đồ vật</div><div id="game-asset-upload-list" class="grid grid-cols-1 sm:grid-cols-2 gap-2"></div><div class="rounded-xl border p-3 bg-white"><label class="font-bold text-xs">Animation nhân vật / model đã chọn</label><select id="studio-animation" onchange="setAssetStudioAnimation(this.value)" class="w-full border rounded-xl p-2 mt-1 text-sm"><option value="">Chưa có animation</option></select><div class="text-[11px] text-slate-500 mt-1">Chọn clip xem thử cho model.</div><div id="studio-status-clips" class="mt-3 border-t pt-3 space-y-2"><div class="font-black text-xs">🎞️ Animation theo trạng thái (mọi asset trừ Player)</div><label class="block text-xs">Bình thường<select id="studio-status-normal" onchange="setAssetStatusClip('normal',this.value)" class="w-full p-2 border rounded-xl mt-1"></select></label><label class="block text-xs">Có thông báo / sẵn sàng<select id="studio-status-attention" onchange="setAssetStatusClip('attention',this.value)" class="w-full p-2 border rounded-xl mt-1"></select></label></div><div class="mt-3 border-t pt-3 space-y-2"><div class="font-black text-xs">🧑‍🌾 Animation Player</div><label class="block text-xs">Idle — đứng yên<select id="studio-player-idle" onchange="setPlayerAssetClip('idle',this.value)" class="w-full p-2 border rounded-xl mt-1"></select></label><label class="block text-xs">Walk — di chuyển<select id="studio-player-walk" onchange="setPlayerAssetClip('walk',this.value)" class="w-full p-2 border rounded-xl mt-1"></select></label></div><div class="mt-3 border-t pt-3 space-y-2"><div class="font-black text-xs">☀️ Ánh sáng của asset đang chọn</div><label class="block text-xs">Độ sáng <span id="studio-light-brightness-value">1.00</span><input id="studio-light-brightness" type="range" min=".2" max="2.5" step=".05" value="1" oninput="setAssetLight('brightness',this.value)" class="w-full"></label><label class="block text-xs">Tự phát sáng <span id="studio-light-emissive-value">0.00</span><input id="studio-light-emissive" type="range" min="0" max=".8" step=".02" value="0" oninput="setAssetLight('emissive',this.value)" class="w-full"></label><div class="text-[11px] text-slate-500">Chỉnh vật liệu, không tạo thêm đèn cho mỗi model để tránh giảm FPS.</div></div></div></section>
+          <div class="rounded-xl bg-amber-50 border border-amber-200 p-3 text-xs">⚠️ Thử nghiệm: model và file upload chỉ giữ trong phiên. GLB quá nặng có thể giảm FPS trên điện thoại. Đồ vật chưa đăng ký trong game sẽ không bị thay tự động.</div>
+        </div>
+        <div class="shrink-0 border-t p-3 bg-white grid grid-cols-2 gap-2"><button onclick="closeAssetStudio()" class="rounded-xl p-3 bg-slate-100 font-bold">Đóng</button><button onclick="closeAssetStudio();toggleGameAssetTool(true)" class="rounded-xl p-3 bg-sky-600 text-white font-bold">🧰 Căn chỉnh ngoài game</button></div>
+      </div>
+    </div>
+
     <!-- Hồ sơ nhân vật: chỉ chân dung, thống kê nông trại và nút cài đặt -->
     <div id="modal-player-profile" class="fixed inset-0 bg-black/50 z-50 hidden items-end sm:items-center justify-center p-3">
       <div class="glass-panel w-full max-w-sm rounded-3xl p-4 shadow-2xl max-h-[88vh] overflow-y-auto">
@@ -172,6 +222,10 @@
         </div>
     </div>
 
+    <div id="quick-pen-panel" class="hidden interactive-ui" aria-label="Chăm sóc nhanh">
+      <div class="quick-pen-heading"><span id="quick-pen-title">🐾 Chăm sóc nhanh</span><button type="button" onclick="closeQuickPen()" aria-label="Đóng">✕</button></div>
+      <div id="quick-pen-actions" class="quick-pen-actions"></div>
+    </div>
     <!-- ANIMAL PEN MANAGEMENT MODAL -->
     <div id="modal-animal-pen" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 hidden flex items-center justify-center p-4">
         <div class="glass-panel w-full max-w-md rounded-3xl p-5 shadow-2xl flex flex-col">
@@ -499,8 +553,8 @@
     <div id="modal-plot-upgrade" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-3">
       <div class="glass-panel w-full max-w-lg rounded-3xl p-4 shadow-2xl max-h-[88vh] flex flex-col"><div class="flex justify-between items-center mb-2"><h3 class="font-black text-lg">🌟 Nâng cấp ô đất</h3><button onclick="closeModal('modal-plot-upgrade')" class="rounded-full bg-slate-200 w-8 h-8 font-bold">✕</button></div><p class="text-xs text-slate-600 mb-3">Cấp cao cho nhiều sản phẩm hơn. Chi phí tăng mạnh và yêu cầu cấp nhân vật cao.</p><div id="plot-upgrade-list" class="flex flex-col gap-2 overflow-y-auto"></div></div>
     </div>
-    <div id="modal-settings" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-      <div class="glass-panel w-full max-w-md rounded-3xl p-5 shadow-2xl max-h-[90vh] overflow-y-auto">
+    <div id="modal-settings" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-2 sm:p-4">
+      <div class="glass-panel w-full max-w-md rounded-3xl p-5 shadow-2xl max-h-[90dvh] overflow-y-auto overscroll-contain touch-pan-y">
         <div class="flex justify-between items-center mb-4"><h3 class="font-black text-lg text-slate-800">⚙️ Cài đặt & dữ liệu</h3><button onclick="closeModal('modal-settings')" class="rounded-full bg-slate-200 w-8 h-8 font-bold">✕</button></div>
         <label class="block text-xs font-bold mb-1">Tên nhân vật</label><div class="flex gap-2 mb-4"><input id="setting-player-name" maxlength="24" class="min-w-0 flex-1 rounded-xl border p-2" placeholder="Tên nhân vật"><button onclick="savePlayerName()" class="px-3 rounded-xl bg-emerald-600 text-white font-bold text-xs">Đổi tên</button></div>
         <div class="grid grid-cols-1 gap-3 mb-4">
@@ -530,6 +584,7 @@
           <div class="px-3 pb-2"><div class="flex justify-between text-xs font-bold mb-1"><label for="setting-music-volume">Âm lượng nhạc nền</label><span id="setting-music-volume-label">30%</span></div><input id="setting-music-volume" type="range" min="0" max="100" value="30" class="w-full accent-emerald-600" oninput="previewAudioVolume('music', this.value)" onchange="saveAudioSettings()"></div>
           <p class="text-[11px] text-slate-500">Âm thanh đóng gói trong game để dùng offline. Trên điện thoại, chạm màn hình một lần để kích hoạt phát nhạc.</p>
         </div>
+        <button type="button" onclick="openAssetStudio()" class="w-full mb-4 p-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-sky-600 text-white font-black shadow-lg">🧰 Mở Asset Studio — Tải GLB & căn chỉnh</button>
         <div class="grid grid-cols-2 gap-2"><button onclick="exportFarmSave()" class="p-3 rounded-xl bg-sky-600 text-white font-bold text-sm">⬇️ Xuất save</button><button onclick="document.getElementById('import-save-file').click()" class="p-3 rounded-xl bg-violet-600 text-white font-bold text-sm">⬆️ Nhập save</button></div>
         <input id="import-save-file" type="file" accept="application/json,.json" class="hidden" onchange="importFarmSave(event)">
         <button onclick="startNewFarm()" class="w-full mt-3 p-3 rounded-xl bg-rose-100 text-rose-700 border border-rose-200 font-black text-sm">🆕 Tạo nông trại mới</button>
@@ -537,7 +592,85 @@
       </div>
     </div>
 
-    <script>function openEntertainmentMenu(){openModal('modal-entertainment');}</script>
+    <script>
+    // UI-only layout enhancement for the four requested management windows.
+    // Existing IDs, inline handlers and game logic remain in place.
+    (function initCozyManagementLayouts(){
+      function makeTabButton(id, icon, label, target, active) {
+        const b = document.createElement('button');
+        b.type = 'button'; b.id = id; b.className = 'cc-side-tab' + (active ? ' is-active' : '');
+        b.innerHTML = '<span class="cc-tab-icon">'+icon+'</span><span class="cc-tab-label">'+label+'</span>';
+        b.setAttribute('aria-controls', target); b.setAttribute('aria-selected', active ? 'true' : 'false');
+        return b;
+      }
+      function setupShop(){
+        const modal=document.getElementById('modal-shop'), card=modal?.firstElementChild;
+        const cats=document.getElementById('shop-buy-categories'), plants=document.getElementById('shop-plant-subtabs');
+        const body=card?.children[1], footer=card?.children[2];
+        if(!card||!cats||!plants||!body||!footer||card.querySelector('.cc-shop-layout')) return;
+        const layout=document.createElement('div'); layout.className='cc-shop-layout';
+        const rail=document.createElement('nav'); rail.className='cc-side-rail cc-shop-rail'; rail.setAttribute('aria-label','Danh mục cửa hàng');
+        const main=document.createElement('div'); main.className='cc-shop-main';
+        const buy=makeTabButton('cc-shop-nav-plants','🌿','Giống cây','shop-items-container',true);
+        rail.append(buy);
+        // Existing category controls are moved intact to preserve their handlers and IDs.
+        cats.classList.remove('grid','grid-cols-4'); cats.classList.add('cc-shop-category-list');
+        rail.append(cats,plants);
+        const mode=card.querySelector('.grid.grid-cols-2');
+        if(mode) main.append(mode);
+        main.append(body); body.classList.add('cc-shop-stock'); footer.classList.add('cc-shop-footer');
+        layout.append(rail,main); card.insertBefore(layout,footer); card.append(footer);
+        // Search and quantity stay in the header. Existing category buttons remain the actual controls.
+      }
+      function setupKitchen(){
+        const card=document.querySelector('#modal-kitchen > .glass-panel'), stoves=document.getElementById('kitchen-stoves-tabs');
+        const status=document.getElementById('stove-cooking-status'), recipes=document.getElementById('kitchen-recipes-container');
+        if(!card||!stoves||!status||!recipes||card.querySelector('.cc-kitchen-layout')) return;
+        const layout=document.createElement('div'); layout.className='cc-kitchen-layout';
+        const rail=document.createElement('aside'); rail.className='cc-kitchen-rail';
+        const main=document.createElement('div'); main.className='cc-kitchen-main';
+        const label=document.createElement('div'); label.className='cc-rail-caption'; label.textContent='KHU VỰC BẾP'; rail.append(label,stoves);
+        main.append(status,recipes); layout.append(rail,main); card.append(layout);
+      }
+      function setupMarket(){
+        const card=document.querySelector('#modal-market > .glass-panel'), orders=document.getElementById('market-orders-container');
+        if(!card||!orders||card.querySelector('.cc-market-heading')) return;
+        const heading=card.querySelector('h3');
+        if(heading){ const eyebrow=document.createElement('div'); eyebrow.className='cc-market-eyebrow'; eyebrow.textContent='GIAO DỊCH NÔNG TRẠI'; heading.parentElement.insertBefore(eyebrow,heading); }
+        orders.classList.add('cc-market-orders');
+      }
+      function setupSettings(){
+        const card=document.querySelector('#modal-settings > .glass-panel');
+        if(!card||card.querySelector('.cc-settings-layout'))return;
+        const nodes=Array.from(card.children);
+        const [header,nameLabel,nameRow,controls,assetButton,saveButtons,importInput,newFarm,note]=nodes;
+        if(!header||!controls||!assetButton||!saveButtons)return;
+        const controlItems=Array.from(controls.children); // Snapshot BEFORE moving nodes
+        const layout=document.createElement('div');layout.className='cc-settings-layout';
+        const rail=document.createElement('nav');rail.className='cc-settings-tabs';rail.setAttribute('aria-label','Các mục cài đặt');
+        const content=document.createElement('div');content.className='cc-settings-content';
+        const defs=[
+          ['Cơ bản','👤',[nameLabel,nameRow,controlItems[0]]],
+          ['Camera','🎥',controlItems.slice(1,4)],
+          ['Âm thanh','🔊',controlItems.slice(4)],
+          ['Assets 3D','🧰',[assetButton]],
+          ['Dữ liệu','💾',[saveButtons,importInput,newFarm,note]]
+        ];
+        const tabs=[];const panels=[];
+        defs.forEach(([label,icon,items],i)=>{
+          const panel=document.createElement('section');panel.className='cc-settings-panel'+(i===0?' is-active':'');
+          items.forEach(n=>{if(n)panel.appendChild(n)});content.appendChild(panel);panels.push(panel);
+          const tab=document.createElement('button');tab.type='button';tab.className='cc-settings-tab'+(i===0?' is-active':'');tab.textContent=icon+' '+label;
+          tab.onclick=()=>{panels.forEach((v,j)=>v.classList.toggle('is-active',i===j));tabs.forEach((v,j)=>v.classList.toggle('is-active',i===j));content.scrollTop=0;};
+          rail.appendChild(tab);tabs.push(tab);
+        });
+        layout.append(rail,content);card.append(layout);controls.remove();
+      }
+      function init(){setupShop();setupKitchen();setupMarket();setupSettings();}
+      if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init,{once:true}); else init();
+    })();
+    function openEntertainmentMenu(){openModal('modal-entertainment');}
+    </script>
     <!-- JS MODULES INCLUSION -->
     <script src="js/assets/assetCatalog.js"></script>
     <script src="js/assets/assetManager.js"></script>
@@ -565,12 +698,17 @@
     <script src="js/engine/weather.js"></script>
     <script src="js/models/player.js"></script>
     <script src="js/models/plots.js"></script>
+    <script src="js/ui/cropAssetTestUI.js"></script>
+    <script src="js/ui/gameAssetTestUI.js"></script>
+    <script src="js/ui/assetStudio.js"></script>
     <script src="js/models/orchard.js"></script>
     <script src="js/models/animals.js"></script>
     <script src="js/models/pond.js"></script>
+    <script src="js/ui/quickCare.js"></script>
     <script src="js/models/kitchen3d.js"></script>
     <script src="js/engine/controls.js"></script>
 
+    <script src="js/performanceLogger.js"></script>
     <script src="js/main.js"></script>
 </body>
 </html>
