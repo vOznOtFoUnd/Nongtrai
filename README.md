@@ -92,3 +92,33 @@ Bản đồ hiện tại là **bước nền tảng**: một số khu như cổn
 - Tắt pan của OrbitControls để tránh kéo lệch tâm bám; vẫn giữ xoay và zoom.
 - Pha tự đi tới ô đất dùng vector thế giới trực tiếp, tránh bị chuyển đổi hướng theo camera lần thứ hai.
 - Không triển khai multiplayer và không thay đổi các hệ thống gameplay không liên quan.
+
+
+## NPC & Nhiệm vụ v1.8
+- Thêm bác trưởng làng dạng chibi ở quảng trường với dấu nhiệm vụ nổi; nút 📜 mở bảng nhiệm vụ hiện có.
+- Thêm ba nhiệm vụ lưu tiến độ: thu hoạch 5 cây, bán 3 nông sản và câu/thu hoạch 2 cá.
+- Thưởng khi nhận: thu hoạch +150 xu/30 EXP; bán hàng +100 xu/20 EXP; cá +120 xu/25 EXP. Mỗi nhiệm vụ chỉ nhận thưởng một lần.
+- Save cũ tương thích ngược; các nhiệm vụ mới bắt đầu từ 0 nếu chưa tồn tại trong dữ liệu lưu.
+- Chế độ offline giữ nguyên; chưa triển khai multiplayer.
+
+
+## v1.9 — Đối thoại NPC và giao hàng
+- Bổ sung lời thoại của bác trưởng làng trong bảng nhiệm vụ.
+- Thêm 3 đơn giao hàng: 3 lúa mì (90 xu + 15 EXP), 2 cà rốt (120 xu + 18 EXP), 2 cà chua (160 xu + 22 EXP).
+- Nhận đơn trước khi giao; giao đủ số lượng sẽ trừ nông sản khỏi túi, trả thưởng và đánh dấu đơn hoàn tất.
+- Trạng thái nhận/hoàn tất đơn được lưu; save cũ tự nhận danh sách đơn mặc định.
+- Chưa triển khai multiplayer; giữ chế độ offline và các hệ thống khác.
+
+
+## v1.9.1 — Mobile HUD & Fullscreen
+- Nén thanh công cụ thành một hàng cuộn ngang để không che khuất thế giới 3D.
+- Thu gọn bảng hạt giống và cho phép cuộn ngang danh sách hạt.
+- Thêm nút ⛶ bật/tắt toàn màn hình qua Fullscreen API; nếu trình duyệt không hỗ trợ sẽ hiện thông báo.
+- Không thay đổi logic gameplay, save game hoặc hệ thống điều khiển.
+
+
+## v1.9.2 — World layout & farming feedback
+- Mở rộng ranh giới bản đồ và dời các khu vực dịch vụ ra khỏi vùng ruộng trung tâm.
+- Dời biển chỉ dẫn sang cạnh lối vào khu vực.
+- Bổ sung biểu tượng giọt nước cho cây con chưa tưới.
+- Cải thiện thông báo khi thao tác và nêu tên loại vật cản gần nhất.
