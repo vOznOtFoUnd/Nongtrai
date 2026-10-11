@@ -10,12 +10,12 @@ function showToast(title, message, icon = '✨', duration = 3000) {
     }
 
     const toast = document.createElement('div');
-    toast.className = 'toast-item p-2.5 sm:p-3 rounded-[20px] flex items-center gap-3 shadow-xl border-2 border-pink-200 bg-[#fffaf2]/95 text-slate-700';
+    toast.className = 'toast-item p-2 rounded-[14px] flex items-center gap-2 shadow-lg border border-pink-200 bg-[#fffaf2]/95 text-slate-700';
     toast.innerHTML = `
-        <div class="text-2xl bg-[#e4f8ec] p-2 rounded-2xl border border-[#c5edd7] flex items-center justify-center">${icon}</div>
+        <div class="text-lg bg-[#e4f8ec] p-1.5 rounded-xl border border-[#c5edd7] flex items-center justify-center">${icon}</div>
         <div class="flex-1 pr-1">
-            <div class="font-extrabold text-xs text-slate-800">${title}</div>
-            <div class="text-[11px] text-slate-600 font-medium">${message}</div>
+            <div class="font-extrabold text-[11px] leading-tight text-slate-800">${title}</div>
+            <div class="text-[10px] leading-tight text-slate-600 font-medium">${message}</div>
         </div>
     `;
     container.appendChild(toast);

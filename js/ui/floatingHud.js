@@ -55,6 +55,7 @@ function getWorldIndicatorSprite(target, kind = 'attention', scale = 0.7) {
 
 function setWorldIndicator(target, kind, visible = true, scale = 0.7) {
     if (!target) return;
+    target.userData.assetAttention = !!visible;
     if (!visible) {
         const entry = worldIndicatorCache.get(target);
         if (entry) entry.sprite.visible = false;
