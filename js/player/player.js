@@ -152,7 +152,14 @@ export class PlayerCharacter {
     if (hitZ) this.velocity.z *= 0.12;
     if ((hitX || hitZ) && performance.now()-this._lastCollisionMessage>2200) {
       this._lastCollisionMessage=performance.now();
-      if (this.onMessage) this.onMessage('Có vật cản phía trước — đi vòng qua nhé! 🌿');
+      if (this.onMessage) {
+        const boxes = data.boxes || [];
+        const px = this.root.position.x, pz = this.root.position.z;
+        const nearest = boxes.filter(b => px >= b.minX - 1.2 && px <= b.maxX + 1.2 && pz >= b.minZ - 1.2 && pz <= b.maxZ + 1.2)
+          .sort((a,b) => Math.hypot((a.minX+a.maxX)/2-px,(a.minZ+a.maxZ)/2-pz)-Math.hypot((b.minX+b.maxX)/2-px,(b.minZ+b.maxZ)/2-pz))[0];
+        const names = { fence: 'hàng rào', tree: 'cây cối', 'forest-tree': 'cây trong rừng', barn: 'nhà kho', windmill: 'cối xay gió', pond: 'hồ nước', shop: 'cửa hàng', livestock: 'chuồng chăn nuôi', portal: 'cổng dịch chuyển', 'pen-fence': 'hàng rào chuồng' };
+        this.onMessage(`Đang bị chắn bởi ${names[nearest?.kind] || 'vật cản'}; hãy đi vòng qua nhé.`);
+      }
     }
   }
 
@@ -163,7 +170,7 @@ export class PlayerCharacter {
     const data=this.collisionProvider?.()||{}; const target=candidates.find(([x,z])=>!this._isBlocked(x,z,data));
     if(!target){this.onMessage?.('Không thể tiếp cận ô đất này, thử từ phía khác nhé!');return;}
     this.actionTask={plot,action,execute,target:new THREE.Vector3(target[0],0,target[1]),phase:'approach'};this.actionClock=0;
-    this.onMessage?.(({hoe:'Đang tới ô đất để cuốc…',water:'Đang tới cây để tưới…',plant:'Đang tới ô đất để gieo hạt…',harvest:'Đang tới cây để thu hoạch…',unlock:'Đang tới ô đất…'})[action]||'Đang tới vị trí thao tác…');
+    this.onMessage?.(({hoe:'Đang di chuyển tới ô đất để cuốc…',water:'Đang di chuyển tới cây để tưới…',plant:'Đang di chuyển tới ô đất để gieo hạt…',harvest:'Đang di chuyển tới cây để thu hoạch…',unlock:'Đang tới ô đất để mở khóa…'})[action]||'Đang tới vị trí thao tác…');
   }
   _showTool(name){Object.values(this.tools).forEach(t=>t.visible=false);if(this.tools[name])this.tools[name].visible=true;}
 
@@ -207,7 +214,7 @@ export class PlayerCharacter {
     const t=performance.now()/1000;
     this.legs.forEach((leg,i)=>{leg.rotation.x=actualMoving?Math.sin(t*10+i*Math.PI)*0.55:THREE.MathUtils.damp(leg.rotation.x,0,12,dt);});
     this.arms.forEach((arm,i)=>{arm.rotation.x=actualMoving?Math.sin(t*10+i*Math.PI+Math.PI)*0.45:THREE.MathUtils.damp(arm.rotation.x,0,12,dt);});
-    if(task?.phase==='act') { this.actionClock+=dt; const wave=Math.sin(this.actionClock*13); if(task.action==='hoe'){this.arms[1].rotation.x=-.85+Math.max(0,wave)*.5;this.arms[1].rotation.z=-.55;} else if(task.action==='water'){this.arms[1].rotation.x=-.65;this.arms[1].rotation.z=-.25;} else if(task.action==='plant'){this.arms[1].rotation.x=-.9+Math.max(0,wave)*.2;} else if(task.action==='harvest'){this.arms[1].rotation.x=-.7+wave*.22;} if(this.actionClock>=this.actionDuration){this.actionTask=null;this._showTool(null);this.arms.forEach(a=>{a.rotation.x=0;a.rotation.z=0;});task.execute?.();} }
+    if(task?.phase==='act') { this.actionClock+=dt; const wave=Math.sin(this.actionClock*13); if(task.action==='hoe'){this.arms[1].rotation.x=-.85+Math.max(0,wave)*.5;this.arms[1].rotation.z=-.55;} else if(task.action==='water'){this.arms[1].rotation.x=-.65;this.arms[1].rotation.z=-.25;} else if(task.action==='plant'){this.arms[1].rotation.x=-.9+Math.max(0,wave)*.2;} else if(task.action==='harvest'){this.arms[1].rotation.x=-.7+wave*.22;} if(this.actionClock>=this.actionDuration){this.actionTask=null;this._showTool(null);this.arms.forEach(a=>{a.rotation.x=0;a.rotation.z=0;});this.onMessage?.(({hoe:'Hoàn tất động tác cuốc đất ⛏️',water:'Hoàn tất động tác tưới nước 💧',plant:'Hoàn tất động tác gieo hạt 🌱',harvest:'Đang hoàn tất thu hoạch 🧺'})[task.action] || 'Đã hoàn tất thao tác.');task.execute?.();} }
     else if(!task) this._showTool(null);
     this.root.position.y=actualMoving?Math.abs(Math.sin(t*10))*0.035:0;
     if(this.controls){
