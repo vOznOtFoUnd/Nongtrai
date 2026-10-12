@@ -4,6 +4,7 @@ import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { CONFIG, CROPS, getPlotUnlockRequirement } from '../core/config.js';
 import { state, spendMoney, addExp, incrementHarvested, saveGame } from '../data/state.js';
+import { canCarry, backpackCapacity, backpackUsed } from '../systems/inventory.js';
 
 const gltfLoader = new GLTFLoader();
 const objLoader = new OBJLoader();
@@ -31,6 +32,7 @@ export class Plot {
     this.stage = 0; 
     this.watered = false;
     this.dryTimer = 0;
+    this.pest = false; this.pestClock = 0;
 
     this.mesh = new THREE.Mesh(
       new THREE.BoxGeometry(plotSize - 0.15, 0.25, plotSize - 0.15),
@@ -95,7 +97,7 @@ export class Plot {
     this.growProgress = 0; 
     this.stage = 0; 
     this.watered = false;
-    this.dryTimer = 0;
+    this.dryTimer = 0; this.pest = false; this.pestClock = 0;
     
     this.updateCropVisual();
     this._setWaterMarker(true);
@@ -125,12 +127,20 @@ export class Plot {
     return false;
   }
 
+  catchPest() {
+    if (!this.pest) { this.onMessage('Ô đất này chưa có sâu bệnh. 🌿'); return false; }
+    if (!canCarry(1)) { this.onMessage(`Ba lô đầy (${backpackUsed()}/${backpackCapacity()})! Hãy gửi đồ vào kho trước khi bắt sâu.`); return false; }
+    this.pest = false; this.pestClock = 0; state.inventory.pests = (state.inventory.pests || 0) + 1;
+    this.onMessage('Bắt được 1 sâu làm mồi câu! Cây trồng sẽ phát triển bình thường trở lại. 🐛'); saveGame(); this.updateCropVisual(); return true;
+  }
+
   harvest() {
     if (this.state !== 'grown') {
       if (this.state === 'planted') this.onMessage('Cây chưa chín!');
       else this.onMessage('Không có gì để thu hoạch!');
       return false;
     }
+    if (!canCarry(1)) { this.onMessage(`Ba lô đầy (${backpackUsed()}/${backpackCapacity()})! Hãy cất bớt đồ vào kho trước khi thu hoạch.`); return false; }
     const crop = CROPS[this.cropType];
     state.inventory.crops ??= { wheat: 0, carrot: 0, tomato: 0, pumpkin: 0 };
     state.inventory.crops[this.cropType] = (state.inventory.crops[this.cropType] || 0) + 1;
@@ -153,7 +163,7 @@ export class Plot {
     this.growProgress = 0; 
     this.stage = 0; 
     this.watered = false;
-    this.dryTimer = 0;
+    this.dryTimer = 0; this.pest = false; this.pestClock = 0;
     this.mesh.material = matNormal.clone();
     this.clearCropVisual();
     this._setWaterMarker(false);
@@ -163,8 +173,12 @@ export class Plot {
     if (!this.unlocked || this.state !== 'planted') return;
     const crop = CROPS[this.cropType];
     
+    if (!this.pest && Math.random() < dt * 0.0035) { this.pest = true; this.pestClock = 0; this.updateCropVisual(); this.onMessage(`🐛 Sâu bệnh xuất hiện trên ${crop.name}! Chọn công cụ 🐛 Bắt sâu để lấy mồi câu.`); }
+    if (this.pest) this.pestClock += dt;
     if (this.watered) {
-      this.growProgress += dt;
+      const hoeLevel = Math.max(0, Number(state.forge?.upgrades?.hoe) || 0);
+      const growthBoost = 1 + hoeLevel * 0.12;
+      this.growProgress += dt * (this.pest ? 0.45 : 1) * growthBoost;
       const progress = Math.min(1, this.growProgress / crop.growTime);
       const newStage = Math.floor(progress * crop.stages);
       if (newStage !== this.stage) { 
@@ -192,7 +206,7 @@ export class Plot {
     this.growProgress = data.growProgress;
     this.stage = data.stage;
     this.watered = data.watered;
-    this.dryTimer = data.dryTimer || 0;
+    this.dryTimer = data.dryTimer || 0; this.pest = Boolean(data.pest); this.pestClock = Number(data.pestClock) || 0;
 
     if (!this.unlocked) {
       this.mesh.material = matLocked.clone();
@@ -279,6 +293,13 @@ export class Plot {
     } else {
       this._createFallbackVisual(crop, this.stage, crop.stages);
     }
+    this._updatePestVisual();
+  }
+
+  _updatePestVisual() {
+    let bug=this.cropGroup.getObjectByName('crop-pest');
+    if (this.pest && !bug) { bug=new THREE.Group(); bug.name='crop-pest'; const mat=new THREE.MeshStandardMaterial({color:0x543522}); const body=new THREE.Mesh(new THREE.SphereGeometry(.09,8,6),mat); body.position.set(.25,.28,.1); bug.add(body); for(const x of [-.06,.06]) { const leg=new THREE.Mesh(new THREE.CylinderGeometry(.012,.012,.16,5),mat); leg.position.set(.25+x,.2,.13); leg.rotation.z=.7; bug.add(leg); } this.cropGroup.add(bug); }
+    if (bug) bug.visible=Boolean(this.pest);
   }
 
   _createFallbackVisual(crop, stage, maxStage) {
@@ -328,6 +349,15 @@ export class Plot {
         fruit.position.y = 0.4; fruit.scale.y = 0.8; fruit.castShadow = true; this.cropGroup.add(fruit);
         const stemTop = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 0.2, 5), new THREE.MeshStandardMaterial({ color: 0x3d2b1f }));
         stemTop.position.y = 0.75; this.cropGroup.add(stemTop);
+      } else if (['sunflower','rose','tulip'].includes(crop.id)) {
+        const stem = new THREE.Mesh(new THREE.CylinderGeometry(.035,.045,.75,6),new THREE.MeshStandardMaterial({color:0x3f873e})); stem.position.y=.38; this.cropGroup.add(stem);
+        if (crop.id === 'sunflower') {
+          const petals = new THREE.Mesh(new THREE.SphereGeometry(.34,10,8),new THREE.MeshStandardMaterial({color:0xf5c542})); petals.position.y=.83; petals.scale.set(1,.32,1); this.cropGroup.add(petals);
+          const center = new THREE.Mesh(new THREE.SphereGeometry(.14,10,8),new THREE.MeshStandardMaterial({color:0x5a3824})); center.position.y=.85; this.cropGroup.add(center);
+        } else {
+          const flower = new THREE.Mesh(new THREE.SphereGeometry(.22,10,8),new THREE.MeshStandardMaterial({color:crop.id==='rose'?0xe84362:0xff6b81})); flower.position.y=.82; flower.scale.set(.85,1.15,.85); this.cropGroup.add(flower);
+          if (crop.id === 'tulip') { const leaf = new THREE.Mesh(new THREE.SphereGeometry(.12,7,5),new THREE.MeshStandardMaterial({color:0x4a9c4a})); leaf.position.set(.13,.35,0); leaf.scale.set(.45,2,.45); this.cropGroup.add(leaf); }
+        }
       }
     }
   }
