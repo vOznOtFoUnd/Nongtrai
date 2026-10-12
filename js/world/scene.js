@@ -58,23 +58,218 @@ export class GameScene {
     this.sun.position.set(20, 30, 15); this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(CONFIG.renderer.shadowMapSize, CONFIG.renderer.shadowMapSize);
     this.sun.shadow.camera.near = 1; this.sun.shadow.camera.far = 80;
-    this.sun.shadow.camera.left = -35; this.sun.shadow.camera.right = 35;
-    this.sun.shadow.camera.top = 35; this.sun.shadow.camera.bottom = -35;
+    this.sun.shadow.camera.left = -90; this.sun.shadow.camera.right = 90;
+    this.sun.shadow.camera.top = 115; this.sun.shadow.camera.bottom = -115;
     this.sun.shadow.bias = -0.001; this.scene.add(this.sun);
     this.scene.add(new THREE.HemisphereLight(0x87CEEB, 0x3d7a37, 0.35));
   }
 
   _createEnvironment() {
-    const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(CONFIG.world.groundSize, CONFIG.world.groundSize),
-      new THREE.MeshStandardMaterial({ color: 0x3d8b40, roughness: 0.95, metalness: 0.05 })
-    );
-    ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; this.scene.add(ground);
+    this._createIslandCoast();
 
     const path = new THREE.Mesh(new THREE.PlaneGeometry(4, 20), new THREE.MeshStandardMaterial({ color: 0x8B6914, roughness: 0.9 }));
     path.rotation.x = -Math.PI / 2; path.position.set(0, 0.01, 20); path.receiveShadow = true; this.scene.add(path);
 
-    this._createFence(); this._createFarmFence(); this._createTrees(); this._createBarn(); this._createWindmill();
+    this._createFarmFence(); this._createTrees(); this._createBarn(); this._createWindmill();
+  }
+
+  _createIslandCoast() {
+    this.oceanLife = [];
+    // Biển bao quanh toàn bộ đảo; mặt nước nằm thấp hơn bãi cát để tránh z-fighting.
+    const oceanMat = new THREE.MeshStandardMaterial({ color: 0x167fa8, roughness: 0.3, metalness: 0.12 });
+    const ocean = new THREE.Mesh(new THREE.PlaneGeometry(520, 620), oceanMat);
+    ocean.rotation.x = -Math.PI / 2; ocean.position.y = -0.62; ocean.receiveShadow = true; this.scene.add(ocean);
+
+    // Bãi cát hình chữ nhật chạy liền quanh đảo. Thảm cỏ nằm trên phần lõi, chừa dải cát rộng 9 đơn vị.
+    const sandMat = new THREE.MeshStandardMaterial({ color: 0xe8d19a, roughness: 1.0 });
+    const sand = new THREE.Mesh(new THREE.PlaneGeometry(153, 204), sandMat);
+    sand.rotation.x = -Math.PI / 2; sand.position.y = -0.045; sand.receiveShadow = true; this.scene.add(sand);
+
+    const grass = new THREE.Mesh(
+      new THREE.PlaneGeometry(135, 186),
+      new THREE.MeshStandardMaterial({ color: 0x3d8b40, roughness: 0.95, metalness: 0.02 })
+    );
+    grass.rotation.x = -Math.PI / 2; grass.position.y = 0.005; grass.receiveShadow = true; this.scene.add(grass);
+
+    // Dải bọt sóng mảnh ở mép cát, chia thành bốn cạnh để tạo đường bờ biển dễ nhận biết.
+    const foamMat = new THREE.MeshStandardMaterial({ color: 0xc9f4f4, transparent: true, opacity: 0.78, roughness: 0.45 });
+    const foamParts = [
+      { w: 153, d: 0.8, x: 0, z: -101.25 }, { w: 153, d: 0.8, x: 0, z: 101.25 },
+      { w: 0.8, d: 204, x: -76.1, z: 0 }, { w: 0.8, d: 204, x: 76.1, z: 0 }
+    ];
+    for (const part of foamParts) {
+      const foam = new THREE.Mesh(new THREE.PlaneGeometry(part.w, part.d), foamMat);
+      foam.rotation.x = -Math.PI / 2; foam.position.set(part.x, -0.012, part.z); this.scene.add(foam);
+    }
+
+    // Vệt cát nhỏ và vỏ sò rải dọc bãi biển; dùng ít mesh và vật liệu dùng chung.
+    const shellMat = new THREE.MeshStandardMaterial({ color: 0xfff0cf, roughness: 0.8 });
+    const pebbleMat = new THREE.MeshStandardMaterial({ color: 0xc4b184, roughness: 1 });
+    for (let i = 0; i < 68; i++) {
+      const t = i / 17;
+      const side = i % 4;
+      const along = -0.46 + (t % 1) * 0.92;
+      const x = side === 0 ? along * 70 : side === 1 ? along * 70 : side === 2 ? -70 + (i % 17) * 8.75 : 70 - (i % 17) * 8.75;
+      const z = side === 0 ? -94 + (i % 17) * 11.75 : side === 1 ? 94 - (i % 17) * 11.75 : along * 94;
+      const shell = new THREE.Mesh(new THREE.SphereGeometry(0.12, 6, 4), i % 3 === 0 ? shellMat : pebbleMat);
+      shell.scale.set(1.25, 0.28, 0.75); shell.position.set(x, 0.015, z); this.scene.add(shell);
+    }
+
+    // Không dựng hàng rào quanh đảo: bãi cát mở ra biển, nhưng mép đảo vẫn chặn người chơi.
+    this.staticCollisionBoxes.push(
+      { minX: -77.3, maxX: -76.7, minZ: -102.5, maxZ: 102.5, kind: 'island-edge' },
+      { minX: 76.7, maxX: 77.3, minZ: -102.5, maxZ: 102.5, kind: 'island-edge' },
+      { minX: -77.3, maxX: 77.3, minZ: -102.5, maxZ: -101.7, kind: 'island-edge' },
+      { minX: -77.3, maxX: 77.3, minZ: 101.7, maxZ: 102.5, kind: 'island-edge' }
+    );
+
+    this._createBeachDock();
+    this._createBeachFishingSpots();
+    this._createBeachCreatures();
+    this._createOceanAnimals();
+  }
+
+  _createBeachFishingSpots() {
+    const wood=new THREE.MeshStandardMaterial({color:0x936238,roughness:.9});
+    const rope=new THREE.MeshStandardMaterial({color:0x554638,roughness:1});
+    const signMat=new THREE.MeshStandardMaterial({color:0x4e9dca,roughness:.7});
+    // Three readable fishing spots along the beach; these are scenery markers for the beach-fishing panel.
+    for (const [x,z,rot] of [[70,-17,-.25],[70,17,.2],[45,94,-.4]]) {
+      const marker=new THREE.Group();
+      const post=new THREE.Mesh(new THREE.CylinderGeometry(.08,.1,1.35,7),wood); post.position.y=.66; marker.add(post);
+      const board=new THREE.Mesh(new THREE.BoxGeometry(.95,.48,.12),signMat); board.position.set(0,1.25,0); marker.add(board);
+      const rod=new THREE.Mesh(new THREE.CylinderGeometry(.025,.035,1.65,6),wood); rod.position.set(.35,1.3,.1); rod.rotation.z=-.45; marker.add(rod);
+      const line=new THREE.Mesh(new THREE.CylinderGeometry(.008,.008,.75,4),rope); line.position.set(.68,.83,.1); marker.add(line);
+      marker.position.set(x,0,z); marker.rotation.y=rot; marker.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}}); this.scene.add(marker);
+    }
+  }
+
+  _createBeachDock() {
+    const dock = new THREE.Group();
+    const wood = new THREE.MeshStandardMaterial({ color: 0x936238, roughness: 0.9 });
+    const plank = new THREE.MeshStandardMaterial({ color: 0xb9814d, roughness: 0.86 });
+    const darkWood = new THREE.MeshStandardMaterial({ color: 0x684326, roughness: 0.95 });
+    const addBox = (w, h, d, mat, x, y, z, parent = dock) => {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+      mesh.position.set(x, y, z); mesh.castShadow = true; mesh.receiveShadow = true; parent.add(mesh); return mesh;
+    };
+    // Bến gỗ nằm ở bờ đông, từ dải cát hướng ra biển; mặt sàn hơi nhô khỏi mặt nước.
+    for (let x = 63; x <= 75.2; x += 1.25) {
+      addBox(1.18, 0.22, 4.0, plank, x, 0.18, -3.0);
+      for (const z of [-4.65, -1.35]) addBox(0.24, 1.0, 0.24, darkWood, x, -0.2, z);
+    }
+    addBox(13.4, 0.16, 0.2, wood, 69.0, 0.28, -4.8);
+    addBox(13.4, 0.16, 0.2, wood, 69.0, 0.28, -1.2);
+    // Bollards at the pier head.
+    for (const z of [-4.6, -1.4]) {
+      addBox(0.38, 0.72, 0.38, darkWood, 74.8, 0.55, z);
+      addBox(0.52, 0.12, 0.52, plank, 74.8, 0.94, z);
+    }
+    this.scene.add(dock);
+    this.staticCollisionBoxes.push({ minX: 62.2, maxX: 75.8, minZ: -5.1, maxZ: -0.9, kind: 'beach-dock' });
+
+    // Small stylized moored boat alongside the end of the pier.
+    const boat = new THREE.Group();
+    const hullMat = new THREE.MeshStandardMaterial({ color: 0xc65b3b, roughness: 0.75 });
+    const insideMat = new THREE.MeshStandardMaterial({ color: 0xf0d29a, roughness: 0.9 });
+    const hull = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.58, 1.55), hullMat);
+    hull.position.y = -0.04; hull.scale.set(1, 0.72, 1); boat.add(hull);
+    const bow = new THREE.Mesh(new THREE.ConeGeometry(0.82, 1.35, 4), hullMat);
+    bow.rotation.z = -Math.PI / 2; bow.rotation.y = Math.PI / 4; bow.position.set(2.05, -0.02, 0); boat.add(bow);
+    const seat = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.16, 1.1), insideMat); seat.position.set(-0.2, 0.25, 0); boat.add(seat);
+    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.07, 2.1, 6), darkWood); mast.position.set(-0.9, 0.85, 0); boat.add(mast);
+    const sail = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshStandardMaterial({ color: 0xfff1cf, side: THREE.DoubleSide, roughness: 0.95 }));
+    const sailGeom = new THREE.BufferGeometry();
+    sailGeom.setAttribute('position', new THREE.Float32BufferAttribute([-0.85,0.15,0, -0.85,1.85,0, 0.48,0.25,0],3));
+    sailGeom.setIndex([0,1,2]); sailGeom.computeVertexNormals(); sail.geometry = sailGeom; boat.add(sail);
+    boat.position.set(73.1, -0.18, 1.25); boat.rotation.y = -0.28;
+    boat.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    this.scene.add(boat); this.mooredBoat = boat;
+    const ropeMat = new THREE.MeshStandardMaterial({ color: 0x594735, roughness: 1 });
+    const rope = new THREE.Mesh(new THREE.CylinderGeometry(0.025,0.025,1.7,5), ropeMat);
+    rope.position.set(74.2,0.03,0.1); rope.rotation.z = Math.PI/2; this.scene.add(rope);
+  }
+
+  _createBeachCreatures() {
+    const crabRed = new THREE.MeshStandardMaterial({ color: 0xd94e37, roughness: 0.8 });
+    const crabDark = new THREE.MeshStandardMaterial({ color: 0x8d352b, roughness: 0.9 });
+    const starMats = [0xe88b39, 0xe8b64d, 0xd96d8b];
+    const shellMats = [0xf1d8ad, 0xe9a7a1, 0xd8c7ee];
+    const makeCrab = (x,z,scale=1) => {
+      const g = new THREE.Group();
+      const body = new THREE.Mesh(new THREE.SphereGeometry(0.32,10,7), crabRed); body.scale.set(1.15,0.58,0.85); body.position.y=0.22; g.add(body);
+      for (const side of [-1,1]) {
+        for (let i=0;i<3;i++) {
+          const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.035,0.055,0.43,5), crabDark);
+          leg.position.set(side*(0.25+i*0.08),0.12,-0.24+i*0.24); leg.rotation.z=side*0.85; leg.rotation.x=(i-1)*0.18; g.add(leg);
+        }
+        const claw = new THREE.Mesh(new THREE.SphereGeometry(0.12,7,5), crabRed); claw.position.set(side*0.43,0.26,-0.43); g.add(claw);
+        const eyeStem = new THREE.Mesh(new THREE.CylinderGeometry(0.025,0.03,0.16,5), crabDark); eyeStem.position.set(side*0.13,0.42,0.12); g.add(eyeStem);
+        const eye = new THREE.Mesh(new THREE.SphereGeometry(0.055,7,5), new THREE.MeshStandardMaterial({color:0xffffff})); eye.position.set(side*0.13,0.52,0.12); g.add(eye);
+      }
+      g.position.set(x,0.015,z); g.scale.setScalar(scale); g.rotation.y = (x+z)*0.07; this.scene.add(g);
+    };
+    const makeStarfish = (x,z,scale=1,matIndex=0) => {
+      const g = new THREE.Group();
+      const core = new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.2,0.09,5), starMats[matIndex%starMats.length]); core.position.y=0.065; g.add(core);
+      for(let i=0;i<5;i++) {
+        const arm = new THREE.Mesh(new THREE.ConeGeometry(0.105,0.52,5), starMats[matIndex%starMats.length]);
+        arm.position.y=0.07; arm.position.x=Math.cos(i*Math.PI*2/5)*0.31; arm.position.z=Math.sin(i*Math.PI*2/5)*0.31;
+        arm.rotation.z=-Math.cos(i*Math.PI*2/5)*0.82; arm.rotation.x=Math.sin(i*Math.PI*2/5)*0.82; g.add(arm);
+      }
+      g.position.set(x,0.02,z); g.scale.setScalar(scale); g.rotation.y=(x-z)*0.12; this.scene.add(g);
+    };
+    const makeShell = (x,z,scale=1,matIndex=0) => {
+      const g = new THREE.Group();
+      const shell = new THREE.Mesh(new THREE.SphereGeometry(0.22,9,6), shellMats[matIndex%shellMats.length]); shell.scale.set(1,0.55,0.72); shell.position.y=0.12; g.add(shell);
+      const spiral = new THREE.Mesh(new THREE.TorusGeometry(0.07,0.025,5,8), new THREE.MeshStandardMaterial({color:0xb88975,roughness:1})); spiral.position.set(0.02,0.23,0.02); g.add(spiral);
+      g.position.set(x,0.015,z); g.scale.setScalar(scale); g.rotation.y=(x+z)*0.13; this.scene.add(g);
+    };
+    const shoreline = [
+      [-68,-87],[-52,-96],[-30,-96],[-8,-96],[18,-96],[42,-95],[66,-82],
+      [68,-58],[69,-31],[69,20],[68,48],[61,78],[40,95],[12,96],[-18,96],[-45,93],[-67,77],
+      [-68,52],[-69,25],[-68,-10],[-68,-42],[-67,-65]
+    ];
+    shoreline.forEach(([x,z],i)=>{
+      if(i%3===0) makeCrab(x,z,0.8+(i%2)*0.15);
+      if(i%3===1) makeStarfish(x+(i%2?1.1:-1.1),z+0.9,0.78,i%3);
+      if(i%3===2) makeShell(x-0.8,z-0.6,0.75,i%3);
+    });
+    // Extra clusters near the pier and the southern beach.
+    makeCrab(60,-7,0.85); makeCrab(58,5,0.75);
+    makeStarfish(55,-8,0.9,1); makeStarfish(-48,96,0.85,2);
+    makeShell(64,-8,0.9,0); makeShell(-61,88,0.85,1);
+  }
+
+  _createOceanAnimals() {
+    const makeFish = (kind, color, scale, x, z, routeX, routeZ, speed, phase) => {
+      const group = new THREE.Group();
+      const bodyMat = new THREE.MeshStandardMaterial({ color, roughness: 0.55, metalness: 0.04 });
+      const finMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(color).multiplyScalar(0.78), roughness: 0.6 });
+      const body = new THREE.Mesh(new THREE.SphereGeometry(1,14,10), bodyMat);
+      body.scale.set(kind==='whale'?2.15:kind==='dolphin'?1.25:0.95, kind==='whale'?0.72:kind==='dolphin'?0.58:0.62, kind==='whale'?0.72:kind==='dolphin'?0.5:0.48);
+      group.add(body);
+      const tail = new THREE.Mesh(new THREE.ConeGeometry(kind==='whale'?0.58:0.34, kind==='whale'?1.15:0.7, 5), finMat);
+      tail.rotation.x=Math.PI/2; tail.position.set(kind==='whale'?-2.15:-1.18,0,0); group.add(tail);
+      const dorsal = new THREE.Mesh(new THREE.ConeGeometry(kind==='shark'?0.45:0.28,kind==='shark'?0.85:0.48,5),finMat);
+      dorsal.position.set(0,kind==='whale'?0.68:0.48,0); dorsal.rotation.z=Math.PI; group.add(dorsal);
+      for (const side of [-1,1]) {
+        const fin = new THREE.Mesh(new THREE.ConeGeometry(0.22,kind==='whale'?0.9:0.55,5),finMat);
+        fin.position.set(0,-0.25,side*0.55); fin.rotation.x=side*0.7; fin.rotation.z=0.7; group.add(fin);
+      }
+      if(kind==='dolphin') { body.rotation.z=-0.12; }
+      if(kind==='shark') {
+        const jaw = new THREE.Mesh(new THREE.SphereGeometry(0.45,9,6),new THREE.MeshStandardMaterial({color:0xe9e7df,roughness:0.9})); jaw.scale.set(1.2,0.22,0.55); jaw.position.set(0,-0.32,0); group.add(jaw);
+      }
+      group.scale.setScalar(scale); group.position.set(x,-0.08,z); group.rotation.y=0;
+      group.traverse(o=>{if(o.isMesh){o.castShadow=true; o.receiveShadow=true;}}); this.scene.add(group);
+      this.oceanLife.push({group, baseX:x, baseZ:z, routeX, routeZ, speed, phase, kind});
+    };
+    // Animals swim in broad paths outside the sandy shoreline. Their silhouettes stay near the water surface.
+    makeFish('whale',0x4f8fb4,1.8,-120,-75,26,9,0.22,0.2);
+    makeFish('dolphin',0x729fb5,1.05,115,-18,18,34,0.42,1.8);
+    makeFish('shark',0x647b8c,1.15,-115,38,22,30,0.3,3.4);
+    makeFish('dolphin',0x7bb4c5,0.8,100,75,30,15,0.48,4.6);
   }
 
   _createFence() {
@@ -89,8 +284,8 @@ export class GameScene {
       mesh.position.set(x,y,z); mesh.castShadow=true; mesh.receiveShadow=true; parent.add(mesh); return mesh;
     };
     const sides = [
-      {axis:'x', fixed:-26, start:-26, end:26}, {axis:'x', fixed:26, start:-26, end:26},
-      {axis:'z', fixed:-26, start:-26, end:26}, {axis:'z', fixed:26, start:-26, end:26}
+      {axis:'x', fixed:-102, start:-76.5, end:76.5}, {axis:'x', fixed:102, start:-76.5, end:76.5},
+      {axis:'z', fixed:-76.5, start:-102, end:102}, {axis:'z', fixed:76.5, start:-102, end:102}
     ];
     for (const side of sides) {
       const length = side.end-side.start;
@@ -120,10 +315,10 @@ export class GameScene {
     this.scene.add(fence);
     // Va chạm theo chu vi hàng rào liền mạch.
     this.staticCollisionBoxes.push(
-      {minX:-26.3,maxX:-25.7,minZ:-26.3,maxZ:26.3,kind:'fence'},
-      {minX:25.7,maxX:26.3,minZ:-26.3,maxZ:26.3,kind:'fence'},
-      {minX:-26.3,maxX:26.3,minZ:-26.3,maxZ:-25.7,kind:'fence'},
-      {minX:-26.3,maxX:26.3,minZ:25.7,maxZ:26.3,kind:'fence'}
+      {minX:-77.3,maxX:-76.7,minZ:-102.5,maxZ:102.5,kind:'fence'},
+      {minX:76.7,maxX:77.3,minZ:-102.5,maxZ:102.5,kind:'fence'},
+      {minX:-77.3,maxX:77.3,minZ:-102.5,maxZ:-101.7,kind:'fence'},
+      {minX:-77.3,maxX:77.3,minZ:101.7,maxZ:102.5,kind:'fence'}
     );
   }
 
@@ -174,7 +369,7 @@ export class GameScene {
   }
 
   _createTrees() {
-    [[-29,-24],[-29,24],[29,-24],[29,24],[-24,-29],[24,-29],[-24,29],[24,29]].forEach(([x,z]) => {
+    [[-73,-98],[-73,98],[73,-98],[73,98],[-73,0],[73,0],[0,-98],[0,98]].forEach(([x,z]) => {
       const g = new THREE.Group();
       const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.3, 1.8, 8), new THREE.MeshStandardMaterial({ color: 0x5c4033 }));
       trunk.position.y = 0.9; trunk.castShadow = true; g.add(trunk);
@@ -417,7 +612,7 @@ export class GameScene {
     const leafMat = new THREE.MeshStandardMaterial({ color: 0x4d994b, roughness: 1 });
 
     // Hoa nhỏ được đặt ở mép các khu vực, không tạo collider để không ảnh hưởng di chuyển.
-    for (const bed of (decor.flowerBeds || [])) {
+    for (const bed of [...(decor.flowerBeds || []), ...(decor.extraFlowerBeds || [])]) {
       const group = new THREE.Group();
       for (let i = 0; i < 5; i++) {
         const a = i * Math.PI * 2 / 5;
@@ -451,7 +646,7 @@ export class GameScene {
     // Bụi cây tròn nhiều lớp, dùng chung vật liệu để giảm số lần tạo tài nguyên GPU.
     const bushMats = [0x3f8b45, 0x55a34f, 0x6caf55].map(color => new THREE.MeshStandardMaterial({ color, roughness: 1 }));
     const bushGeo = new THREE.SphereGeometry(0.42, 8, 6);
-    for (const item of (decor.bushes || [])) {
+    for (const item of [...(decor.bushes || []), ...(decor.extraBushes || [])]) {
       const bush = new THREE.Group();
       for (let i = 0; i < 3; i++) {
         const puff = new THREE.Mesh(bushGeo, bushMats[i]);
@@ -460,6 +655,21 @@ export class GameScene {
       }
       bush.position.set(item.x, 0, item.z);
       this.scene.add(bush);
+    }
+
+    // Cụm cây đa dạng trên vùng mở rộng; đặt ở rìa bản đồ, tránh mạng đường trung tâm.
+    const treeTrunkMat = new THREE.MeshStandardMaterial({ color: 0x80502b, roughness: 1 });
+    const treeLeafMats = [0x2f8b43, 0x48a94f, 0x397e48, 0x5b9f43].map(color => new THREE.MeshStandardMaterial({ color, roughness: 1 }));
+    for (const item of (decor.extraTrees || [])) {
+      const tree = new THREE.Group(); const s = item.scale || 1;
+      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(.14*s,.22*s,1.25*s,7),treeTrunkMat); trunk.position.y=.625*s; tree.add(trunk);
+      if (item.kind === 'pine') {
+        for (let i=0;i<3;i++){const crown=new THREE.Mesh(new THREE.ConeGeometry((.9-i*.17)*s,1.25*s,7),treeLeafMats[(i+2)%treeLeafMats.length]);crown.position.y=(1.25+i*.52)*s;tree.add(crown);}
+      } else {
+        const crown = new THREE.Mesh(new THREE.SphereGeometry(.82*s,9,7),treeLeafMats[Math.abs(Math.round(item.x))%treeLeafMats.length]); crown.position.y=1.65*s; crown.scale.set(1,1.05,.95); tree.add(crown);
+        if(item.kind==='fruit') for(const [x,y,z] of [[-.42,1.8,.25],[.4,1.55,.25],[.12,2.0,-.4]]) {const fruit=new THREE.Mesh(new THREE.SphereGeometry(.12*s,7,5),new THREE.MeshStandardMaterial({color:0xe84e45,roughness:.7}));fruit.position.set(x*s,y*s,z*s);tree.add(fruit);}
+      }
+      tree.position.set(item.x,0,item.z);tree.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});this.scene.add(tree);
     }
 
     // Bụi cỏ thấp ở rìa đất, không có collider và không phủ lên các đường đi.
@@ -644,6 +854,17 @@ export class GameScene {
 
   render(dt = 1/60) {
     if (this.windmillRotor) this.windmillRotor.rotation.z += 0.36 * Math.min(dt, 0.05);
+    if (this.mooredBoat) { this.mooredBoat.position.y = -0.18 + Math.sin(performance.now() * 0.0012) * 0.035; this.mooredBoat.rotation.z = Math.sin(performance.now() * 0.0008) * 0.012; }
+    if (this.oceanLife) {
+      const now = performance.now() * 0.001;
+      for (const animal of this.oceanLife) {
+        const a = now * animal.speed + animal.phase;
+        animal.group.position.x = animal.baseX + Math.cos(a) * animal.routeX;
+        animal.group.position.z = animal.baseZ + Math.sin(a) * animal.routeZ;
+        animal.group.position.y = -0.08 + Math.sin(a * 2.0) * (animal.kind === 'whale' ? 0.12 : 0.07);
+        animal.group.rotation.y = -Math.atan2(Math.cos(a) * animal.routeZ, -Math.sin(a) * animal.routeX);
+      }
+    }
     if (this.portalGlow) this.portalGlow.material.emissiveIntensity = 1.0 + 0.35 * Math.sin(performance.now() * 0.002);
     this.controls.update();
     if (this.questNpcMarker) this.questNpcMarker.position.y = 2.75 + Math.sin(performance.now() * 0.003) * 0.08;

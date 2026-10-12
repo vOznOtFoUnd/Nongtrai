@@ -4,7 +4,8 @@
  */
 export const WORLD_MAP = {
   version: 1.4,
-  bounds: { minX: -25.5, maxX: 25.5, minZ: -25.5, maxZ: 25.5 },
+  // Bản đồ mới: chiều dài trục Z = 204 (4x), chiều rộng trục X = 153 (3x).
+  bounds: { minX: -76.5, maxX: 76.5, minZ: -102, maxZ: 102 },
   zones: {
     mainFarm: { name: 'Nông trại chính', x: 0, z: 0, width: 18, depth: 18, type: 'farm', unlocked: true },
     village: { name: 'Khu làng', x: 0, z: -20.0, width: 8, depth: 4, type: 'village', unlocked: true },
@@ -58,6 +59,27 @@ export const WORLD_MAP = {
       { x: 13.8, z: 1.8, scale: 0.9 }, { x: 13.7, z: 9.0, scale: 0.75 },
       { x: -5.9, z: 13.8, scale: 0.8 }, { x: 5.9, z: 13.8, scale: 0.8 },
       { x: -14.0, z: -10.0, scale: 0.75 }, { x: 14.0, z: -12.4, scale: 0.7 }
+    ],
+    extraTrees: [
+      { x: -61, z: -78, kind: 'pine', scale: 1.15 }, { x: -55, z: -84, kind: 'round', scale: 1.2 },
+      { x: -47, z: -79, kind: 'fruit', scale: 1.05 }, { x: 48, z: -82, kind: 'pine', scale: 1.2 },
+      { x: 58, z: -72, kind: 'round', scale: 1.0 }, { x: 64, z: -54, kind: 'fruit', scale: 1.1 },
+      { x: -65, z: -42, kind: 'round', scale: 1.15 }, { x: -59, z: -31, kind: 'pine', scale: 1.1 },
+      { x: 63, z: -24, kind: 'round', scale: 1.0 }, { x: 66, z: -8, kind: 'fruit', scale: 1.0 },
+      { x: -64, z: 22, kind: 'pine', scale: 1.2 }, { x: -59, z: 36, kind: 'round', scale: 1.05 },
+      { x: 61, z: 31, kind: 'fruit', scale: 1.1 }, { x: 65, z: 48, kind: 'pine', scale: 1.15 },
+      { x: -63, z: 57, kind: 'round', scale: 1.2 }, { x: -54, z: 68, kind: 'fruit', scale: 1.05 },
+      { x: 53, z: 70, kind: 'round', scale: 1.1 }, { x: 62, z: 82, kind: 'pine', scale: 1.2 },
+      { x: -42, z: 84, kind: 'pine', scale: 1.0 }, { x: 37, z: 87, kind: 'fruit', scale: 1.0 }
+    ],
+    extraBushes: [
+      { x: -54, z: -68, scale: 1.1 }, { x: -45, z: -65, scale: 0.9 }, { x: 48, z: -67, scale: 1.0 },
+      { x: 57, z: -58, scale: 0.85 }, { x: -57, z: -18, scale: 1.0 }, { x: 57, z: 8, scale: 0.95 },
+      { x: -55, z: 46, scale: 1.0 }, { x: 51, z: 54, scale: 0.9 }, { x: -42, z: 73, scale: 1.1 }, { x: 43, z: 75, scale: 1.0 }
+    ],
+    extraFlowerBeds: [
+      { x: -43, z: -72, scale: 1.2 }, { x: 43, z: -73, scale: 1.0 }, { x: -49, z: -5, scale: 1.1 },
+      { x: 49, z: 17, scale: 1.0 }, { x: -45, z: 58, scale: 1.15 }, { x: 42, z: 62, scale: 1.0 }
     ],
     grassTufts: [
       { x: -14.2, z: 0.0 }, { x: -14.1, z: 4.0 }, { x: -13.8, z: 9.0 },
