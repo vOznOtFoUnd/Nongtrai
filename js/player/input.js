@@ -12,11 +12,12 @@ export class Input {
     this._pointerStart = null;
     // Chỉ tương tác ô đất khi đây là cú chạm/click ngắn; vuốt để xoay camera không kích hoạt ruộng.
     domElement.addEventListener('pointerdown', e => {
-      if (e.target.closest('#ui') || e.target.closest('#mobile-joystick')) return;
+      if (window.farmWorldEditorActive || e.target.closest('#ui') || e.target.closest('#mobile-joystick')) return;
       this._pointerStart = { id: e.pointerId, x: e.clientX, y: e.clientY, target: e.target };
     });
     domElement.addEventListener('pointerup', e => {
       const start = this._pointerStart; this._pointerStart = null;
+      if (window.farmWorldEditorActive) return;
       if (!start || start.id !== e.pointerId || Math.hypot(e.clientX - start.x, e.clientY - start.y) > 10) return;
       this._onDown(e);
     });
@@ -24,7 +25,7 @@ export class Input {
   }
 
   _onDown(e) {
-    if (e.target.closest('#ui')) return;
+    if (window.farmWorldEditorActive || e.target.closest('#ui')) return;
     this.mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
     this.mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
     this.raycaster.setFromCamera(this.mouse, this.camera);
@@ -40,8 +41,19 @@ export class Input {
           if (action === 'unlock') plot.unlockPlot();
           else if (action === 'hoe') plot.hoe();
           else if (action === 'plant') plot.plant(state.selectedCrop);
-          else if (action === 'water') plot.water();
+          else if (action === 'water') {
+            plot.water();
+            const canLevel = Math.max(0, Number(state.forge?.upgrades?.wateringCan) || 0);
+            if (canLevel >= 2) {
+              // Bình tưới cấp 2+ tưới các ô lân cận trong phạm vi 3x3.
+              state.plots.filter(other => other !== plot && other.unlocked &&
+                Math.abs(other.ix - plot.ix) <= 1 && Math.abs(other.iz - plot.iz) <= 1 &&
+                (other.state === 'planted' || other.state === 'withered'))
+                .forEach(other => other.water());
+            }
+          }
           else if (action === 'harvest') plot.harvest();
+          else if (action === 'pest') plot.catchPest();
         };
         if (this.player) this.player.performAction(plot, action, execute);
         else execute();
