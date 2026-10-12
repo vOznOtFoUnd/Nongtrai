@@ -11,8 +11,17 @@ export const state = {
   plots: [],
   time: 0,
   dayLength: CONFIG.world.dayLength,
-  inventory: { seeds: { wheat: 5, carrot: 0, tomato: 0, pumpkin: 0 }, crops: { wheat: 0, carrot: 0, tomato: 0, pumpkin: 0 }, fish: 0 },
+  backpack: { level: 0 },
+  warehouse: { level: 0, items: {} },
+  inventory: { seeds: { wheat: 5, carrot: 0, tomato: 0, pumpkin: 0, sunflower: 0, rose: 0, tulip: 0 }, crops: { wheat: 0, carrot: 0, tomato: 0, pumpkin: 0, sunflower: 0, rose: 0, tulip: 0 }, fish: 0, beachFish: 0, pests: 0, bait: 0, meals: { bread: 0, soup: 0, pie: 0, grilledFish: 0 }, resources: { stone: 0, copperOre: 0, ironOre: 0, crystal: 0, copperIngot: 0, ironIngot: 0, wood: 0, rope: 0, shells: 0, islandRelics: 0 } },
+  forge: { rodLevel: 0, durability: 0, repairedCount: 0, upgrades: {}, pickaxeLevel: 0, boatLevel: 0, exploredIslands: [] },
+  pets: { dog: 0, cat: 0, active: 'dog' },
+  livestockHealth: { cows: 0, chickens: 0, pigs: 0 },
+  livestockProductsMade: { cows: 0, chickens: 0, pigs: 0 },
+  livestockFeed: 0, medicine: 0,
   fishPond: { count: 0, growth: 0 },
+  livestock: { cows: 0, chickens: 0, pigs: 0, growth: { cows: 0, chickens: 0, pigs: 0 } },
+  animalProducts: { milk: 0, eggs: 0, pork: 0 },
   quests: {
     harvest: { target: 5, progress: 0, claimed: false },
     sell: { target: 3, progress: 0, claimed: false },
@@ -66,7 +75,12 @@ export function saveGame() {
       exp: state.exp,
       time: state.time,
       inventory: state.inventory,
+      backpack: state.backpack,
+      warehouse: state.warehouse,
+      forge: state.forge, pets: state.pets, livestockHealth: state.livestockHealth, livestockProductsMade: state.livestockProductsMade, livestockFeed: state.livestockFeed, medicine: state.medicine,
       fishPond: state.fishPond,
+      livestock: state.livestock,
+      animalProducts: state.animalProducts,
       quests: state.quests,
       deliveryOrders: state.deliveryOrders,
       timestamp: Date.now(),
@@ -79,7 +93,7 @@ export function saveGame() {
         growProgress: p.growProgress,
         stage: p.stage,
         watered: p.watered,
-        dryTimer: p.dryTimer
+        dryTimer: p.dryTimer, pest: p.pest, pestClock: p.pestClock
       }))
     };
     localStorage.setItem('farm3d_save_data', JSON.stringify(saveData));
@@ -115,7 +129,13 @@ export function loadGame() {
     state.level = readNumber(data.level, CONFIG.start.level, 1);
     state.exp = readNumber(data.exp, CONFIG.start.exp);
     state.time = readNumber(data.time, 0);
-    const cropIds = ['wheat', 'carrot', 'tomato', 'pumpkin'];
+    state.backpack = { level: 0, ...(data.backpack || {}) };
+    state.backpack.level = Math.max(0, Math.min(5, Math.floor(Number(state.backpack.level) || 0)));
+    state.warehouse = { level: 0, items: {}, ...(data.warehouse || {}) };
+    state.warehouse.level = Math.max(0, Math.min(5, Math.floor(Number(state.warehouse.level) || 0)));
+    state.warehouse.items = state.warehouse.items && typeof state.warehouse.items === 'object' ? state.warehouse.items : {};
+    for (const [key, value] of Object.entries(state.warehouse.items)) state.warehouse.items[key] = Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
+    const cropIds = ['wheat', 'carrot', 'tomato', 'pumpkin', 'sunflower', 'rose', 'tulip'];
     if (data.inventory && typeof data.inventory === 'object') {
       for (const id of cropIds) {
         const seedAmount = data.inventory.seeds?.[id];
@@ -124,8 +144,42 @@ export function loadGame() {
         state.inventory.crops[id] = Number.isFinite(cropAmount) && cropAmount >= 0 ? Math.floor(cropAmount) : 0;
       }
     }
+    for (const id of ['beachFish', 'pests', 'bait']) { const amount = data.inventory?.[id]; state.inventory[id] = Number.isFinite(amount) && amount >= 0 ? Math.floor(amount) : 0; }
+    state.forge = { rodLevel: 0, durability: 0, repairedCount: 0, upgrades: {}, pickaxeLevel: 0, boatLevel: 0, exploredIslands: [], ...(data.forge || {}) };
+    state.forge.upgrades = { ...(data.forge?.upgrades || {}) };
+    state.forge.pickaxeLevel = Math.max(0, Math.min(3, Math.floor(Number(state.forge.pickaxeLevel) || 0)));
+    state.forge.boatLevel = Math.max(0, Math.min(3, Math.floor(Number(state.forge.boatLevel) || 0)));
+    state.forge.exploredIslands = Array.isArray(state.forge.exploredIslands) ? state.forge.exploredIslands : [];
+    state.pets = { dog: 0, cat: 0, active: 'dog', ...(data.pets || {}) };
+    state.livestockHealth = { cows: 0, chickens: 0, pigs: 0, ...(data.livestockHealth || {}) };
+    state.livestockProductsMade = { cows: 0, chickens: 0, pigs: 0, ...(data.livestockProductsMade || {}) };
+    state.livestockFeed = Number.isFinite(data.livestockFeed) && data.livestockFeed >= 0 ? Math.floor(data.livestockFeed) : 0;
+    state.medicine = Number.isFinite(data.medicine) && data.medicine >= 0 ? Math.floor(data.medicine) : 0;
     const fishCount = data.inventory?.fish;
     state.inventory.fish = Number.isFinite(fishCount) && fishCount >= 0 ? Math.floor(fishCount) : 0;
+    state.inventory.meals ??= { bread: 0, soup: 0, pie: 0, grilledFish: 0 };
+    for (const id of ['bread', 'soup', 'pie', 'grilledFish']) {
+      const amount = data.inventory?.meals?.[id];
+      state.inventory.meals[id] = Number.isFinite(amount) && amount >= 0 ? Math.floor(amount) : 0;
+    }
+    state.inventory.resources ??= { stone: 0, copperOre: 0, ironOre: 0, crystal: 0, copperIngot: 0, ironIngot: 0, wood: 0, rope: 0, shells: 0, islandRelics: 0 };
+    for (const id of ['stone','copperOre','ironOre','crystal','copperIngot','ironIngot','wood','rope','shells','islandRelics']) {
+      const amount = data.inventory?.resources?.[id];
+      state.inventory.resources[id] = Number.isFinite(amount) && amount >= 0 ? Math.floor(amount) : 0;
+    }
+    const livestock = data.livestock || {};
+    for (const id of ['cows', 'chickens', 'pigs']) {
+      const max = id === 'cows' ? 5 : id === 'chickens' ? 12 : 6;
+      const amount = livestock[id];
+      state.livestock[id] = Number.isFinite(amount) && amount >= 0 ? Math.min(max, Math.floor(amount)) : 0;
+      const growth = livestock.growth?.[id];
+      state.livestock.growth[id] = Number.isFinite(growth) && growth >= 0 ? Math.min(100, Math.floor(growth)) : 0;
+    }
+    for (const id of ['milk', 'eggs', 'pork']) {
+      const amount = data.animalProducts?.[id];
+      state.animalProducts[id] = Number.isFinite(amount) && amount >= 0 ? Math.floor(amount) : 0;
+    }
+
     const pond = data.fishPond;
     state.fishPond.count = Number.isFinite(pond?.count) && pond.count >= 0 ? Math.min(5, Math.floor(pond.count)) : 0;
     state.fishPond.growth = Number.isFinite(pond?.growth) && pond.growth >= 0 ? Math.min(100, Math.floor(pond.growth)) : 0;
