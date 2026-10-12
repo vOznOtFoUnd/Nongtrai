@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Nông Trại 3D - Modular Stable</title>
+  <title>Farm nhảm nhí v1.10.12 - Ba lô & kho chứa</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -27,6 +27,7 @@
           <button class="tool-btn active" data-tool="plant" type="button" title="Trồng hạt giống">🌱 Trồng</button>
           <button class="tool-btn" data-tool="water" type="button" title="Tưới cây">💧 Tưới</button>
           <button class="tool-btn" data-tool="harvest" type="button" title="Thu hoạch">🧺 Thu</button>
+          <button class="tool-btn" data-tool="pest" type="button" title="Bắt sâu làm mồi câu">🐛 Bắt sâu</button>
           <span class="toolbar-divider" aria-hidden="true"></span>
           <button id="camera-zoom-in" class="utility-btn" type="button" title="Phóng to góc nhìn" aria-label="Phóng to góc nhìn">＋</button>
           <button id="camera-zoom-out" class="utility-btn" type="button" title="Thu nhỏ góc nhìn" aria-label="Thu nhỏ góc nhìn">−</button>
@@ -38,13 +39,18 @@
           <button id="open-quests" class="utility-btn management-btn" type="button" title="Nói chuyện với bác trưởng làng / Nhiệm vụ">📜</button>
           <button id="open-assets" class="utility-btn management-btn" type="button" title="Quản lý model 3D">🧊</button>
           <button id="open-fishing" class="utility-btn management-btn" type="button" title="Hồ cá và câu cá">🐟</button>
+          <button id="open-cooking" class="utility-btn management-btn" type="button" title="Bếp nấu ăn">🍳</button>
+          <button id="open-livestock" class="utility-btn management-btn" type="button" title="Trang trại chăn nuôi">🐄</button>
+          <button id="open-forge" class="utility-btn management-btn" type="button" title="Lò rèn">⚒️</button>
+          <button id="open-beach" class="utility-btn management-btn" type="button" title="Câu cá biển">🏖️</button>
+          <button id="open-pets" class="utility-btn management-btn" type="button" title="Thú cưng">🐕</button>
         </div>
       </div>
       <div id="instructions" class="panel">
         <h3>🌾 Hướng dẫn</h3>
         • Kéo để xoay camera<br>
         • Chạm ô đất để mở khóa / tương tác<br>
-        • Cuốc → Trồng → Tưới → Thu hoạch<br>• Đến hồ cá để nuôi cá hoặc câu cá<br>• Bấm 📜 để nhận nhiệm vụ từ bác trưởng làng
+        • Cuốc → Trồng → Tưới → Thu hoạch<br>• Đến hồ cá để nuôi cá hoặc câu cá<br>• Bấm 📜 để nhận nhiệm vụ từ bác trưởng làng<br>• Bấm 🍳 để nấu ăn từ nông sản và cá<br>• Bấm 🐄 để nuôi bò, gà và lợn
       </div>
       <div id="crop-info" class="panel">
         <h4>Hạt giống</h4>
@@ -122,7 +128,9 @@
           import('./js/systems/weather.js'),
           import('./js/player/player.js'),
           import('./js/assets/AssetManager.js'),
-          import('./js/assets/AssetPreview.js')
+          import('./js/assets/AssetPreview.js'),
+          import('./js/world/WorldEditor.js'),
+          import('./js/systems/PetFollower.js')
         ]);
 
         saveGame = stateModule.saveGame;
@@ -134,6 +142,8 @@
         const { PlayerCharacter } = playerModule;
         const { AssetManager } = assetModule;
         const { AssetPreview } = previewModule;
+        const { WorldEditor } = await import('./js/world/WorldEditor.js');
+        const { PetFollower } = await import('./js/systems/PetFollower.js');
         // AssetManager là lớp mở rộng; model dựng sẵn vẫn được dùng nếu chưa có asset tùy chỉnh.
         const assetManager = new AssetManager({ onError: error => console.warn('Asset tùy chỉnh:', error) });
         window.farmAssetManager = assetManager; // API debug/tiện ích cho bước tích hợp model tiếp theo.
@@ -141,6 +151,8 @@
         const container = document.getElementById('game-container');
         ui = new UI();
         const gameScene = new GameScene(container, msg => ui.showMessage(msg));
+        const worldEditor = new WorldEditor({ scene: gameScene.scene, camera: gameScene.camera, renderer: gameScene.renderer, controls: gameScene.controls, plotsGroup: gameScene.plotsGroup, collisionBoxes: gameScene.staticCollisionBoxes, onMessage: msg => ui.showMessage(msg) });
+        window.farmWorldEditor = worldEditor;
         const player = new PlayerCharacter(
           gameScene.scene,
           gameScene.controls,
@@ -148,6 +160,9 @@
           () => gameScene.getPlayerCollisionData()
         );
         new Input(gameScene.camera, gameScene.plotsGroup, gameScene.domElement, player);
+        window.farmPlayer = player;
+        const petFollower = new PetFollower(gameScene.scene, player, () => stateModule.state.pets);
+        window.farmPetFollower = petFollower;
         ui.setManagementContext(msg => ui.showMessage(msg));
         ui.setAssetContext({ assetManager, player, AssetPreview, showMessage: msg => ui.showMessage(msg) });
 
@@ -188,6 +203,7 @@
           );
           gameScene.updateDayNight(dayProgress);
           player.update(dt);
+          petFollower.update(dt);
 
           for (const plotObj of gameScene.plotsGroup.children) {
             if (plotObj.userData && plotObj.userData.plot) plotObj.userData.plot.update(dt);
@@ -199,9 +215,11 @@
 
         window.addEventListener('resize', () => gameScene.onResize());
         window.addEventListener('beforeunload', () => {
+          worldEditor._saveLocal(false);
           if (saveGame) saveGame();
         });
         window.addEventListener('pagehide', () => {
+          worldEditor._saveLocal(false);
           if (saveGame) saveGame();
           assetManager.dispose();
         });

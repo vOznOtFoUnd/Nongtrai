@@ -1,3 +1,26 @@
+## v1.10.10 — Câu cá biển, lò rèn, hoa, chăm sóc vật nuôi và thú cưng
+
+- Thêm hoa hướng dương, hoa hồng, hoa tulip với mô hình procedural.
+- Sâu bệnh có xác suất xuất hiện ở ô cây đang sinh trưởng; dùng công cụ 🐛 Bắt sâu để thu sâu, làm mồi câu; sâu bệnh làm chậm sinh trưởng.
+- Thêm các biển báo vị trí câu cá trên bãi biển, cần câu chế tạo/sửa chữa/nâng cấp tại lò rèn, mồi sâu và độ bền cần câu.
+- Thức ăn và thuốc thú y mua tại cửa hàng; đàn vật nuôi có thể mắc bệnh, được chữa bằng thuốc; sản phẩm cần thu hoạch 10 lần mỗi loài mới mở khóa bán vật nuôi.
+- Thêm chó/mèo low-poly đi theo nhân vật, có thể chọn thú cưng đồng hành.
+- Save cũ được khởi tạo dữ liệu mới mà không xóa tiền, cấp độ, cây trồng hay vật nuôi đã lưu.
+- Kiểm tra mã nguồn: cú pháp module, script inline, migration/save state và ZIP. Chưa kiểm tra trực quan trên Chrome Android.
+
+## v1.10.9 — Bến tàu và sinh vật biển
+- Thêm bến gỗ trên bãi biển phía đông, có cọc neo và thuyền buồm nhỏ neo cạnh bến.
+- Thuyền nhấp nhô nhẹ theo mặt nước.
+- Thêm cua, sao biển và ốc biển rải dọc bãi cát.
+- Thêm cá voi, cá heo và cá mập dạng mô hình low-poly tự dựng, bơi theo quỹ đạo ngoài khơi.
+- Thêm vùng va chạm cho mặt bến để hạn chế nhân vật xuyên qua sàn bến.
+- Sinh vật biển hiện là sinh vật môi trường trang trí; chưa có tương tác bắt/cho ăn hoặc AI né người chơi.
+
+## v1.10.8 — Đảo biệt lập và bãi biển vòng quanh
+- Biển xanh bao quanh toàn bộ bản đồ.
+- Dải cát rộng khoảng 9 đơn vị chạy liên tục quanh đảo.
+- Thêm bọt sóng, vỏ sò/sỏi; bỏ hàng rào ngoài đảo và giữ ranh giới va chạm.
+
 # Farmnhamnhi — Modular Step 1
 
 ## Mục tiêu bản này
@@ -122,3 +145,94 @@ Bản đồ hiện tại là **bước nền tảng**: một số khu như cổn
 - Dời biển chỉ dẫn sang cạnh lối vào khu vực.
 - Bổ sung biểu tượng giọt nước cho cây con chưa tưới.
 - Cải thiện thông báo khi thao tác và nêu tên loại vật cản gần nhất.
+
+## World Builder (v1.10.1)
+
+- Bấm **🛠️ Xây dựng** để bật/tắt chế độ chỉnh bố cục; khi bật, thao tác chạm không kích hoạt gameplay trồng trọt.
+- Chạm một vật thể để chọn, kéo để di chuyển; bảng công cụ hỗ trợ di chuyển theo bước, xoay 15°, đổi tỷ lệ, lưới, hoàn tác và khôi phục bố cục mặc định.
+- Bố cục tự lưu vào `localStorage` của trình duyệt và có thể xuất/nhập file JSON.
+- Bản đồ lưu vị trí, góc xoay và tỷ lệ theo ID vật thể được sinh theo thứ tự dựng cảnh của phiên bản này. Khi cấu trúc dựng cảnh thay đổi lớn giữa các phiên bản, hãy xuất JSON dự phòng trước khi nâng cấp.
+- Đây là nền tảng World Builder đầu tiên. Va chạm tĩnh được dịch chuyển theo các hộp va chạm gần vật thể được kéo; những nhóm trang trí không có dữ liệu va chạm riêng có thể cần tinh chỉnh thủ công. Chưa kiểm thử trực quan trên Chrome Android.
+
+
+## v1.10.2 — World Builder object catalog
+
+- Added an in-editor object list with labels and coordinates/rotation/scale readout.
+- Added builder props: tree, rock, fence segment, sign, flower cluster, small shed, decorative pond, and decorative field tile.
+- Builder-created props can be duplicated and deleted; delete can be undone.
+- Original scene objects and gameplay plot objects are protected from deletion/duplication to avoid breaking quest, crop, fish, or save state.
+- Builder-created props are stored in the existing local layout and JSON export/import format. These decorative props do not automatically gain gameplay logic or collision definitions.
+
+## v1.10.3 — Nhóm khu vực và cảnh báo va chạm
+
+- Có thể chọn nhiều mục trong danh sách World Builder rồi gom thành nhóm logic; kéo hoặc dùng các nút di chuyển trên một thành viên sẽ dời cả nhóm theo cùng độ lệch.
+- Hỗ trợ chọn nhanh toàn bộ nhóm, bỏ nhóm và lưu/khôi phục mã nhóm qua localStorage hoặc JSON.
+- Hoàn tác lưu trạng thái vị trí của cả nhóm như một thao tác; đồng thời sửa hoàn tác xóa để đưa vật thể đã xóa trở lại cảnh.
+- Thêm cảnh báo khi vật thể được đặt gần/chồng lên vật thể khác. Đây là cảnh báo hỗ trợ chỉnh tay, không tự chặn vị trí hoặc tự tạo collider mới; các collider tĩnh chỉ được dịch chuyển theo cơ chế hiện có.
+- Không thay đổi hệ thống ruộng/cây trồng, hồ cá, nhiệm vụ, túi đồ, tiền xu hoặc multiplayer.
+
+
+## v1.10.4 — Bản đồ mở rộng và xây nhiều công trình
+- Bản đồ hình chữ nhật: rộng trục X 153 đơn vị (3 lần bản 51), dài trục Z 204 đơn vị (4 lần bản 51). Mặt đất, hàng rào biên, giới hạn di chuyển, tầm camera và sương mù được cập nhật tương ứng.
+- World Builder có loại công trình Nhà ở và Nhà kho lớn; có thể chọn số lượng 1–40 để đặt nhiều công trình cùng lúc. Nhà kho nhỏ vẫn có sẵn.
+- Các công trình được lưu/nhập/xuất qua bố cục JSON và có thể di chuyển, nhóm, nhân bản hoặc xóa như vật thể World Builder khác. Đây là mô hình trang trí, chưa tạo kho đồ/inventory riêng hoặc hệ thống nội thất.
+
+
+## v1.10.5 — Công trình nghề nghiệp & hệ sinh thái mở rộng
+
+- World Builder bổ sung mô hình lò rèn, bếp nấu ăn và bãi biển mini.
+- Bổ sung vật thể cây dừa, cây thông, cây ăn quả, bụi cây, thảm hoa và bụi cỏ; có thể tạo nhiều vật thể cùng lúc, di chuyển, nhóm, nhân bản, lưu và xuất/nhập JSON.
+- Bản đồ có thêm các cụm cây, bụi cây và thảm hoa ở các vùng rìa của bản đồ chữ nhật mở rộng; các cụm trang trí này không tạo collider gameplay và được bố trí tránh mạng đường trung tâm.
+- Lò rèn/bếp/bãi biển hiện là mô hình xây dựng trang trí; chưa có hệ thống chế tạo vật phẩm, nấu công thức hoặc tương tác bãi biển.
+
+
+## v1.10.6 — Gameplay bếp nấu ăn
+- Thêm nút 🍳 Bếp nấu ăn vào giao diện quản lý.
+- Công thức: bánh mì (2 lúa mì), súp rau củ (1 cà rốt + 1 cà chua), bánh bí ngô (1 bí ngô + 1 lúa mì), cá nướng (1 cá + 1 cà rốt).
+- Nấu món ăn tiêu hao nguyên liệu, thêm món vào túi và nhận EXP; có thể bán món ăn ngay tại bếp để nhận tiền.
+- Túi món ăn được lưu cùng dữ liệu save hiện có; save cũ tự khởi tạo số lượng món ăn bằng 0.
+- Đây là gameplay quản lý qua nút bếp 🍳; chưa yêu cầu nhân vật phải đứng gần mô hình bếp.
+
+
+## v1.10.7 — Trang trại chăn nuôi
+- Thêm quản lý đàn bò sữa, gà và lợn; mua vật nuôi, cho ăn bằng lúa mì, tăng độ lớn, thu hoạch và bán sản phẩm.
+- Sản phẩm: sữa, trứng và thịt lợn; số lượng vật nuôi và sản phẩm được lưu trong save game.
+- World Builder có mô hình trang trại bò, chuồng gà và trang trại lợn để dựng nhiều khu chăn nuôi.
+- Chăn nuôi là hệ thống gameplay mô phỏng đơn giản; chưa có AI đi lại/hoạt ảnh vật nuôi.
+
+
+## v1.10.10 — Beach fishing, forge, flowers, animal care and pets
+
+- Added sunflower, rose and tulip crops with procedural flower visuals.
+- Crop plots can randomly develop pests; the `🐛 Bắt sâu` tool catches them. Pest pressure slows crop growth; pests can be converted to bait.
+- Added a beach-fishing management panel, beach fishing spot markers, crafted fishing rod, durability, repair and upgrade progression.
+- Added purchasable livestock feed and veterinary medicine, disease chance while feeding, treatment, repeatable product harvest cycles, and animal-sale unlock after 10 products per species.
+- Added low-poly dog/cat followers and a pet selection panel.
+- Added migration defaults so older saves initialize the new systems without wiping existing progress.
+
+Fishing, animal illness, crafting, and pet behavior are implemented as lightweight gameplay systems; visual browser/device verification is not included in source-level checks.
+
+
+## v1.10.11 — Công cụ nông nghiệp tại lò rèn
+- Thêm chế tạo/nâng cấp cuốc tối đa cấp 3; mỗi cấp tăng tốc độ sinh trưởng cây trồng 12%.
+- Thêm chế tạo/nâng cấp bình tưới tối đa cấp 3; từ cấp 2, tưới một ô sẽ tưới các cây trong vùng 3×3 quanh ô đó.
+- Giữ nguyên hệ thống cần câu, chăn nuôi, câu cá biển, bếp nấu, thú cưng và World Builder.
+- Chi phí nâng cấp dùng tiền và lúa mì đã thu hoạch; cấp công cụ được lưu cùng `forge.upgrades`.
+
+
+## v1.10.12 — Ba lô và kho chứa
+- Ba lô mặc định 80 chỗ; nâng cấp tối đa cấp 5, mỗi cấp thêm 40 chỗ.
+- Kho chứa mặc định 250 chỗ; nâng cấp tối đa cấp 5, mỗi cấp thêm 150 chỗ.
+- Có thể cất/lấy hạt giống, nông sản, cá hồ, cá biển, sâu, mồi câu và món ăn giữa túi và kho.
+- Thu hoạch cây, bắt sâu, mua hạt và nhận cá kiểm tra sức chứa ba lô.
+- Cấp ba lô, cấp kho và vật phẩm trong kho được lưu; save cũ tự khởi tạo kho trống mà không xóa dữ liệu cũ.
+- Nâng cấp ba lô: 180 xu cấp đầu, mỗi cấp sau tăng 140 xu. Nâng cấp kho: 300 xu cấp đầu, mỗi cấp sau tăng 220 xu.
+
+
+## v1.10.13 — Giai đoạn C & D: Khai mỏ, luyện kim và thám hiểm đảo
+- Thêm cuốc chim tại lò rèn, khai thác đá/quặng đồng/quặng sắt/tinh thể và nung quặng thành thỏi.
+- Cuốc chim tối đa cấp 3; cấp cao tăng lượng/cơ hội nhận quặng. Công thức chế tạo và nung hiển thị ngay trong lò rèn.
+- Thêm ba điểm thám hiểm qua menu: Đảo Gỗ Trôi, Đảo Rạn San Hô và Đảo Sương Mù; mỗi chuyến tiêu hao xu, trả về gỗ, dây thừng, vỏ sò, quặng, tinh thể và cổ vật.
+- Thêm nâng cấp thuyền tối đa cấp 3. Cấp 1 mở Rạn San Hô; cấp 2 mở Đảo Sương Mù. Nâng cấp dùng gỗ, dây thừng, thỏi kim loại và xu.
+- Thêm tài nguyên mới vào túi đồ/kho; cấp cuốc, cấp thuyền, danh sách đảo đã khám phá và tài nguyên được lưu cùng bản lưu.
+- Lưu ý: chuyến thám hiểm đảo hiện mô phỏng qua giao diện và phần thưởng; chưa có cảnh 3D riêng cho từng đảo.
